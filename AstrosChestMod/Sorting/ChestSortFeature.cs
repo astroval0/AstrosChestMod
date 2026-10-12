@@ -1,4 +1,6 @@
+using AstrosChestMod.Inventory;
 using Vintagestory.API.Client;
+using Vintagestory.API.Common;
 
 namespace AstrosChestMod.Sorting;
 
@@ -7,6 +9,7 @@ public class ChestSortFeature
     private const string HotkeyCode = "astroschestmod-sort";
 
     private readonly ICoreClientAPI capi;
+    private readonly OpenChestFinder chestFinder;
     
     /// <summary>
     ///  Registers the sort hotkey
@@ -15,6 +18,8 @@ public class ChestSortFeature
     public ChestSortFeature(ICoreClientAPI capi)
     {
         this.capi = capi;
+
+        chestFinder = new OpenChestFinder(capi);
         
         capi.Input.RegisterHotKey(HotkeyCode, "Sort Chests", GlKeys.R, HotkeyType.InventoryHotkeys);
         capi.Input.SetHotKeyHandler(HotkeyCode, OnSortHotkey);
@@ -24,10 +29,17 @@ public class ChestSortFeature
     /// sorts the chests when the hotkey is pressed
     /// </summary>
     /// <param name="keyCombination">the pressed keys</param>
-    /// <returns>true</returns>
+    /// <returns>false when no chest is open so we dont override other hotkeys</returns>
     private bool OnSortHotkey(KeyCombination keyCombination)
     {
-        capi.ShowChatMessage("sort pressed");
+        List<InventoryBase> chests = chestFinder.FindOpenChests();
+        if (chests.Count == 0)
+        {
+            return false;
+        }
+
+        capi.ShowChatMessage($"Found {chests.Count} open chest/s");
+
         return true;
     }
 }
