@@ -1,19 +1,22 @@
-using System.Data.Common;
 using AstrosChestMod.Inventory;
+using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 
 namespace AstrosChestMod.Sorting;
 
 public class ChestSorter
 {
+    private readonly ICoreClientAPI capi;
     private readonly SlotMover slotMover;
 
     /// <summary>
     /// creates a sorter that moves items with the given mover
     /// </summary>
+    /// <param name="capi">the client api</param>
     /// <param name="slotMover">does the movingg</param>
-    public ChestSorter(SlotMover slotMover)
+    public ChestSorter(ICoreClientAPI capi, SlotMover slotMover)
     {
+        this.capi = capi;
         this.slotMover = slotMover;
     }
 
@@ -28,7 +31,7 @@ public class ChestSorter
 
         int merged = MergeStacks(slots);
 
-        ItemStack?[] layout = ChestLayoutPlanner.Plan(slots);
+        ItemStack?[] layout = ChestLayoutPlanner.Plan(slots, capi.World);
 
         int moved = ApplyLayout(slots, layout);
 

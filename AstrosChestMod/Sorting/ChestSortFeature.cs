@@ -21,7 +21,7 @@ public class ChestSortFeature
         this.capi = capi;
 
         chestFinder = new OpenChestFinder(capi);
-        chestSorter = new ChestSorter(new SlotMover(capi));
+        chestSorter = new ChestSorter(capi, new SlotMover(capi));
         
         capi.Input.RegisterHotKey(HotkeyCode, "Sort Chests", GlKeys.R, HotkeyType.InventoryHotkeys);
         capi.Input.SetHotKeyHandler(HotkeyCode, OnSortHotkey);
