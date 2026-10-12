@@ -40,8 +40,8 @@ public class ChestSortFeature
             return false;
         }
 
-        int merged = chestSorter.Sort(chests);
-        capi.ShowChatMessage($"Sorted {chests.Count} chest/s, {merged} merged");
+        SortResult result = chestSorter.Sort(chests);
+        capi.ShowChatMessage($"Sorted {chests.Count} chest/s, {result.Merged} merged, {result.Moved} moved");
 
         return true;
     }

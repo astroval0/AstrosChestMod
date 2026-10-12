@@ -39,4 +39,24 @@ public class SlotMover
 
         return true;
     }
+
+    /// <summary>
+    /// swaps the stacks of two slots
+    /// </summary>
+    /// <param name="source">one of the slots</param>
+    /// <param name="target">the other slot, its inventory does the swap</param>
+    /// <returns>true if the stacks were swapped</returns>
+    public bool TrySwap(ItemSlot source, ItemSlot target)
+    {
+        InventoryBase targetInventory = target.Inventory;
+
+        object? packet = targetInventory.TryFlipItems(targetInventory.GetSlotId(target), source);
+        if (packet == null)
+        {
+            return false;
+        }
+        
+        capi.Network.SendPacketClient(packet);
+        return true;
+    }
 }
