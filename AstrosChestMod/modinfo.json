@@ -4,7 +4,7 @@
   "name": "Astro's Chest Mod",
   "authors": ["astroval0"],
   "description": "merges and sorts the chests you have open with one button",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "dependencies": {
     "game": "1.22.0"
   }
