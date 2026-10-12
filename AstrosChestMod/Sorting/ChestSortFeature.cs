@@ -10,6 +10,7 @@ public class ChestSortFeature
 
     private readonly ICoreClientAPI capi;
     private readonly OpenChestFinder chestFinder;
+    private readonly ChestSorter chestSorter;
     
     /// <summary>
     ///  Registers the sort hotkey
@@ -20,6 +21,7 @@ public class ChestSortFeature
         this.capi = capi;
 
         chestFinder = new OpenChestFinder(capi);
+        chestSorter = new ChestSorter(new SlotMover(capi));
         
         capi.Input.RegisterHotKey(HotkeyCode, "Sort Chests", GlKeys.R, HotkeyType.InventoryHotkeys);
         capi.Input.SetHotKeyHandler(HotkeyCode, OnSortHotkey);
@@ -38,7 +40,8 @@ public class ChestSortFeature
             return false;
         }
 
-        capi.ShowChatMessage($"Found {chests.Count} open chest/s");
+        int merged = chestSorter.Sort(chests);
+        capi.ShowChatMessage($"Sorted {chests.Count} chest/s, {merged} merged");
 
         return true;
     }
