@@ -33,6 +33,7 @@ public static class ChestLayoutPlanner
         ChestCursor cursor = new(shapes, slots.Count);
         int stacksLeft = sorted.Count;
 
+        //todo: ew...
         foreach (var category in sorted.GroupBy(entry => entry.Category))
         {
             cursor.TryLeaveCategoryGap(stacksLeft);
