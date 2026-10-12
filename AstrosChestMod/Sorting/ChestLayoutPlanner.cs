@@ -9,9 +9,10 @@ public static class ChestLayoutPlanner
     /// plans the sorted layout
     /// </summary>
     /// <param name="slots">every slot of every open chest, one chest after the other</param>
+    /// <param name="shapes">the shape of each chest, in the same order as the slots</param>
     /// <param name="world">needed to check what counts as food</param>
     /// <returns>the stack each slot should end up with, null for slots that should be empty</returns>
-    public static ItemStack?[] Plan(List<ItemSlot> slots, IWorldAccessor world)
+    public static ItemStack?[] Plan(List<ItemSlot> slots, List<ChestShape> shapes, IWorldAccessor world)
     {
         List<SortEntry> sorted = slots
             .Select(slot => slot.Itemstack)
@@ -28,13 +29,96 @@ public static class ChestLayoutPlanner
             .ToList();
 
         ItemStack?[] layout = new ItemStack?[slots.Count];
-        for (int i = 0; i < sorted.Count; ++i)
-        {
-            layout[i] = sorted[i].Stack;
-        }
 
+        ChestCursor cursor = new(shapes, slots.Count);
+        int stacksLeft = sorted.Count;
+
+        foreach (var category in sorted.GroupBy(entry => entry.Category))
+        {
+            cursor.TryLeaveCategoryGap(stacksLeft);
+
+            foreach (SortEntry entry in category)
+            {
+                layout[cursor.NextSlot] = entry.Stack;
+                cursor.Advance();
+                
+                --stacksLeft;
+            }
+        }
+        
         return layout;
     }
 
     private readonly record struct SortEntry(ItemStack Stack, ItemCategory Category, string Family);
+
+    private class ChestCursor
+    {
+        private readonly List<ChestShape> shapes;
+        private readonly int totalSlots;
+        private int chestIndex;
+        private int chestStartSlot;
+        
+        public int NextSlot { get; private set; }
+
+        private ChestShape CurrentChest => shapes[chestIndex];
+        private int ChestEndSlot => chestStartSlot + CurrentChest.SlotCount;
+        private bool HasNextChest => chestIndex + 1 < shapes.Count;
+        
+        /// <summary>
+        /// creates a cursor that starts at the first slot of the first chest
+        /// </summary>
+        /// <param name="shapes">the shape of each chest</param>
+        /// <param name="totalSlots">the slot count of all chests together</param>
+        public ChestCursor(List<ChestShape> shapes, int totalSlots)
+        {
+            this.shapes = shapes;
+            this.totalSlots = totalSlots;
+        }
+
+        /// <summary>
+        /// moves to the start of the next row so there is at least one empty slot before the next category
+        /// (does nothing at the start of a chest or when the remaining stacks wouldnt fit anymore)
+        /// </summary>
+        /// <param name="stacksLeft">how many stacks still need a slot</param>
+        public void TryLeaveCategoryGap(int stacksLeft)
+        {
+            int offset = NextSlot - chestStartSlot;
+
+            if (offset == 0)
+            {
+                return;
+            }
+
+            int columns = CurrentChest.Columns > 0 ? CurrentChest.Columns : CurrentChest.SlotCount;
+            int gapOffset = (offset + columns) / columns * columns;
+            int gapSlot = gapOffset >= CurrentChest.SlotCount ? ChestEndSlot : chestStartSlot + gapOffset;
+
+            if (stacksLeft <= totalSlots - gapSlot)
+            {
+                MoveTo(gapSlot);
+            }
+        }
+
+        /// <summary>
+        /// moves to the next slot
+        /// </summary>
+        public void Advance()
+        {
+            MoveTo(NextSlot + 1);
+        }
+
+        /// <summary>
+        /// moves to a slot and steps into the next chest when the slot is past the end of the current one
+        /// </summary>
+        private void MoveTo(int slot)
+        {
+            NextSlot = slot;
+
+            while (HasNextChest && NextSlot >= ChestEndSlot)
+            {
+                chestStartSlot = ChestEndSlot;
+                ++chestIndex;
+            }
+        }
+    }
 }

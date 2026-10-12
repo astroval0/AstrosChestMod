@@ -1,6 +1,7 @@
 using AstrosChestMod.Inventory;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
+using Vintagestory.GameContent;
 
 namespace AstrosChestMod.Sorting;
 
@@ -28,14 +29,24 @@ public class ChestSorter
     public SortResult Sort(List<InventoryBase> chests)
     {
         List<ItemSlot> slots = chests.SelectMany(chest => chest).ToList();
+        List<ChestShape> shapes = chests.Select(GetChestShape).ToList();
 
         int merged = MergeStacks(slots);
 
-        ItemStack?[] layout = ChestLayoutPlanner.Plan(slots, capi.World);
+        ItemStack?[] layout = ChestLayoutPlanner.Plan(slots, shapes, capi.World);
 
         int moved = ApplyLayout(slots, layout);
 
         return new SortResult(merged, moved);
+    }
+
+    /// <summary>
+    /// gets the slot count and column count of a chest
+    /// </summary>
+    private ChestShape GetChestShape(InventoryBase chest)
+    {
+        BlockEntityGenericTypedContainer? container = capi.World.BlockAccessor.GetBlockEntity(chest.Pos) as BlockEntityGenericTypedContainer;
+        return new ChestShape(chest.Count, container?.quantityColumns ?? 0);
     }
 
     /// <summary>
