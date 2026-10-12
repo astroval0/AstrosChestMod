@@ -4,7 +4,24 @@
         <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <Version>0.1.0</Version>
+        <Version>$([System.Text.RegularExpressions.Regex]::Match($([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)\modinfo.json')), '"version"\s*:\s*"([^"]+)"').Groups[1].Value)</Version>
+        <VintageStoryDir>$(APPDATA)\Vintagestory</VintageStoryDir>
+        <ModInstallDir>$(APPDATA)\VintagestoryData\Mods\AstrosChestMod</ModInstallDir>
     </PropertyGroup>
+
+    <ItemGroup>
+        <Reference Include="VintagestoryAPI">
+            <HintPath>$(VintageStoryDir)\VintagestoryAPI.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Update="modinfo.json" CopyToOutputDirectory="PreserveNewest"/>
+    </ItemGroup>
+
+    <Target Name="InstallMod" AfterTargets="Build">
+        <Copy SourceFiles="$(TargetPath);$(TargetDir)$(TargetName).pdb;$(TargetDir)modinfo.json" DestinationFolder="$(ModInstallDir)"/>
+    </Target>
 
 </Project>
