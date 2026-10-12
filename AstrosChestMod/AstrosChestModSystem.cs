@@ -26,4 +26,12 @@ public class AstrosChestModSystem : ModSystem
     {
         chestSort = new ChestSortFeature(api);
     }
+
+    /// <summary>
+    /// shutdown teh features
+    /// </summary>
+    public override void Dispose()
+    {
+        chestSort?.Dispose();
+    }
 }
