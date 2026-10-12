@@ -14,6 +14,7 @@ public static class ItemClassifier
     ];
 
     private static readonly string[] ArmourWords = ["armor", "helmet", "gambeson", "chainmail", "brigandine"];
+    private static readonly string[] OreGrades = ["poor", "medium", "rich", "bountiful"];
     private static readonly Dictionary<string, FamilyInfo> Families = BuildFamilies();
 
     /// <summary>
@@ -75,6 +76,25 @@ public static class ItemClassifier
     public static int GetFamilyRank(string family)
     {
         return Families.TryGetValue(family, out FamilyInfo info) ? info.Rank : int.MaxValue;
+    }
+
+    /// <summary>
+    /// gets the key that orders stacks inside one family. for example: ores go by ore then grade from poor to bountiful.
+    /// </summary>
+    /// <param name="stack">the stack to check</param>
+    /// <returns>a key meant for ordinal string comparison</returns>
+    public static string GetWithinFamilyKey(ItemStack stack)
+    {
+        CollectibleObject collectible = stack.Collectible;
+        string? ore = collectible.Variant["ore"];
+
+        if (ore == null)
+        {
+            return collectible.Code.Path;
+        }
+
+        int grade = Array.IndexOf(OreGrades, collectible.Variant["grade"]);
+        return $"{ore}|{(grade < 0 ? OreGrades.Length : grade)}|{collectible.Variant["rock"]}|{collectible.Code.Path}";
     }
 
     /// <summary>

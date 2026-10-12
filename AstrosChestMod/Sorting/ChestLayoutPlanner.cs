@@ -20,7 +20,10 @@ public static class ChestLayoutPlanner
             .OrderBy(           entry => entry.Category)
             .ThenBy(            entry => ItemClassifier.GetFamilyRank(entry.Family))
             .ThenBy(            entry => entry.Family, StringComparer.Ordinal)
-            .ThenBy(            entry => entry.Stack.Collectible.Code.Path, StringComparer.Ordinal)
+            .ThenBy(            entry => ItemClassifier.GetWithinFamilyKey(entry.Stack), StringComparer.Ordinal)
+            .ThenBy(            entry => entry.Stack.Collectible.Code.Domain, StringComparer.Ordinal)
+            .ThenBy(            entry => entry.Stack.Class)
+            .ThenBy(            entry => entry.Stack.GetName(), StringComparer.Ordinal)
             .ThenByDescending(  entry => entry.Stack.StackSize)
             .ToList();
 
