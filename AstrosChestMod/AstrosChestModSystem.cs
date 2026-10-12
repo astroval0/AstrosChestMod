@@ -1,3 +1,4 @@
+using AstrosChestMod.Config;
 using AstrosChestMod.Sorting;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
@@ -6,7 +7,8 @@ namespace AstrosChestMod;
 
 public class AstrosChestModSystem : ModSystem
 {
-    private ChestSortFeature? chestSort;   
+    private ChestSortFeature? chestSort;
+    private ConfigFile? configFile;
     
     /// <summary>
     /// only loads on the client.
@@ -24,7 +26,8 @@ public class AstrosChestModSystem : ModSystem
     /// <param name="api">the client api</param>
     public override void StartClientSide(ICoreClientAPI api)
     {
-        chestSort = new ChestSortFeature(api);
+        configFile = new ConfigFile(api, Mod);
+        chestSort = new ChestSortFeature(api, configFile);
     }
 
     /// <summary>

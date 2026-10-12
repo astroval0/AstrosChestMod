@@ -1,3 +1,4 @@
+using AstrosChestMod.Config;
 using AstrosChestMod.Inventory;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
@@ -12,6 +13,7 @@ public class ChestSortFeature : IDisposable
     private const long SortCooldownMs = 1000;
 
     private readonly ICoreClientAPI capi;
+    private readonly ConfigFile configFile;
     private readonly OpenChestFinder chestFinder;
     private readonly ChestSorter chestSorter;
 
@@ -24,10 +26,12 @@ public class ChestSortFeature : IDisposable
     ///  Registers the sort hotkey and starts checking for open chests so the sort button can show up
     /// </summary>
     /// <param name="capi"> the client api </param>
-    public ChestSortFeature(ICoreClientAPI capi)
+    /// <param name="configFile">the mod config</param>
+    public ChestSortFeature(ICoreClientAPI capi, ConfigFile configFile)
     {
         this.capi = capi;
-
+        this.configFile = configFile;
+        
         chestFinder = new OpenChestFinder(capi);
         chestSorter = new ChestSorter(capi, new SlotMover(capi));
 
@@ -75,9 +79,14 @@ public class ChestSortFeature : IDisposable
         }
         
         lastSortMs = nowMs;
-        
-        SortResult result = chestSorter.Sort(chests);
-        capi.ShowChatMessage($"sorted {chests.Count} chest/s, {result.Merged} merged, {result.Moved} moved");
+
+        AstrosChestConfig config = configFile.Current;
+        SortResult result = chestSorter.Sort(chests, config);
+
+        if (config.ShowSortSummary)
+        {
+            capi.ShowChatMessage($"sorted {chests.Count} chest/s, {result.Merged} merged, {result.Moved} moved");
+        }
 
         return true;
     }
@@ -88,7 +97,7 @@ public class ChestSortFeature : IDisposable
     /// <param name="deltaTime">seconds since the last check</param>
     private void RefreshSortButton(float deltaTime)
     {
-        bool showButton = chestFinder.FindOpenChests().Count > 0;
+        bool showButton = configFile.Current.ShowSortButton && chestFinder.FindOpenChests().Count > 0;
         if (showButton && !sortButton.IsOpened())
         {
             sortButton.TryOpen();

@@ -1,3 +1,4 @@
+using AstrosChestMod.Config;
 using AstrosChestMod.Inventory;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
@@ -25,15 +26,16 @@ public class ChestSorter
     /// merges duplicate stacks across all the chests
     /// </summary>
     /// <param name="chests">the chest to sort to</param>
+    /// <param name="config">the layout settings</param>
     /// <returns>how many stacks got merged</returns>
-    public SortResult Sort(List<InventoryBase> chests)
+    public SortResult Sort(List<InventoryBase> chests, AstrosChestConfig config)
     {
         List<ItemSlot> slots = chests.SelectMany(chest => chest).ToList();
         List<ChestShape> shapes = chests.Select(GetChestShape).ToList();
 
         int merged = MergeStacks(slots);
 
-        ItemStack?[] layout = ChestLayoutPlanner.Plan(slots, shapes, capi.World);
+        ItemStack?[] layout = ChestLayoutPlanner.Plan(slots, shapes, capi.World, config);
 
         int moved = ApplyLayout(slots, layout);
 

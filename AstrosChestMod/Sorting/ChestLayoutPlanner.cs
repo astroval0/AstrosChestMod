@@ -1,3 +1,4 @@
+using AstrosChestMod.Config;
 using Vintagestory.API.Common;
 
 namespace AstrosChestMod.Sorting;
@@ -11,8 +12,9 @@ public static class ChestLayoutPlanner
     /// <param name="slots">every slot of every open chest, one chest after the other</param>
     /// <param name="shapes">the shape of each chest, in the same order as the slots</param>
     /// <param name="world">needed to check what counts as food</param>
+    /// <param name="config">decides if categories start on a new row and if groups gfet moved to the next chest</param>
     /// <returns>the stack each slot should end up with, null for slots that should be empty</returns>
-    public static ItemStack?[] Plan(List<ItemSlot> slots, List<ChestShape> shapes, IWorldAccessor world)
+    public static ItemStack?[] Plan(List<ItemSlot> slots, List<ChestShape> shapes, IWorldAccessor world, AstrosChestConfig config)
     {
         List<SortEntry> sorted = slots
             .Select(slot => slot.Itemstack)
@@ -33,19 +35,34 @@ public static class ChestLayoutPlanner
         ChestCursor cursor = new(shapes, slots.Count);
         int stacksLeft = sorted.Count;
 
+        bool keepGroups = config.KeepGroupsInOneChest;
+
         //todo: ew...
         foreach (var category in sorted.GroupBy(entry => entry.Category))
         {
-            cursor.TryLeaveCategoryGap(stacksLeft);
-            cursor.TryStartInNextChest(category.Count(), stacksLeft);
+            if (config.StartCategoriesOnNewRow)
+            {
+                cursor.TryLeaveCategoryGap(stacksLeft);
+            }
+            
+            if (keepGroups)
+            {
+                cursor.TryStartInNextChest(category.Count(), stacksLeft);
+            }
 
             foreach (var family in category.GroupBy(entry => entry.Family))
             {
-                cursor.TryStartInNextChest(family.Count(), stacksLeft);
+                if (keepGroups)
+                {
+                    cursor.TryStartInNextChest(category.Count(), stacksLeft);
+                }
 
                 foreach (var sameItem in family.GroupBy(entry => entry.Stack.Collectible))
                 {
-                    cursor.TryStartInNextChest(sameItem.Count(), stacksLeft);
+                    if (keepGroups)
+                    {
+                        cursor.TryStartInNextChest(sameItem.Count(), stacksLeft);
+                    }
                     
                     foreach (SortEntry entry in sameItem)
                     {
