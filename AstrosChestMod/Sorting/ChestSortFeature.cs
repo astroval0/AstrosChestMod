@@ -9,6 +9,7 @@ public class ChestSortFeature : IDisposable
     private const string HotkeyCode = "astroschestmod-sort";
 
     private const int ButtonRefreshMs = 100;
+    private const long SortCooldownMs = 1000;
 
     private readonly ICoreClientAPI capi;
     private readonly OpenChestFinder chestFinder;
@@ -16,6 +17,8 @@ public class ChestSortFeature : IDisposable
 
     private readonly GuiDialogSortButton sortButton;
     private readonly long buttonRefreshListenerId;
+
+    private long lastSortMs = -SortCooldownMs;
     
     /// <summary>
     ///  Registers the sort hotkey and starts checking for open chests so the sort button can show up
@@ -54,7 +57,7 @@ public class ChestSortFeature : IDisposable
     }
     
     /// <summary>
-    /// sorts all open chests, unless none are open
+    /// sorts all open chests, unless none are open or the last sort was less than a second ago
     /// </summary>
     /// <returns></returns>
     private bool TrySortOpenChests()
@@ -64,6 +67,14 @@ public class ChestSortFeature : IDisposable
         {
             return false;
         }
+
+        long nowMs = capi.World.ElapsedMilliseconds;
+        if (nowMs - lastSortMs < SortCooldownMs)
+        {
+            return true;
+        }
+        
+        lastSortMs = nowMs;
         
         SortResult result = chestSorter.Sort(chests);
         capi.ShowChatMessage($"sorted {chests.Count} chest/s, {result.Merged} merged, {result.Moved} moved");
