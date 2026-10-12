@@ -18,6 +18,7 @@ public static class ChestLayoutPlanner
             .OfType<ItemStack>()
             .Select(            stack => new SortEntry(stack, ItemClassifier.GetCategory(stack, world), ItemClassifier.GetFamily(stack)))
             .OrderBy(           entry => entry.Category)
+            .ThenBy(            entry => ItemClassifier.GetFamilyRank(entry.Family))
             .ThenBy(            entry => entry.Family, StringComparer.Ordinal)
             .ThenBy(            entry => entry.Stack.Collectible.Code.Path, StringComparer.Ordinal)
             .ThenByDescending(  entry => entry.Stack.StackSize)

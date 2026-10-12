@@ -7,12 +7,15 @@ public static class ItemClassifier
 {
     private static readonly HashSet<EnumTool> WeaponTools =
     [
-        EnumTool.Sword, EnumTool.Spear, EnumTool.Bow, EnumTool.Sling, EnumTool.Firearm, EnumTool.Crossbow, EnumTool.Javelin,
-        EnumTool.Pike, EnumTool.Shield, EnumTool.Club, EnumTool.Mace, EnumTool.Warhammer, EnumTool.Poleaxe, EnumTool.Halberd, EnumTool.Polearm, EnumTool.Staff
+        EnumTool.Sword, EnumTool.Spear, EnumTool.Bow, EnumTool.Sling, EnumTool.Firearm, EnumTool.Crossbow,
+        EnumTool.Javelin,
+        EnumTool.Pike, EnumTool.Shield, EnumTool.Club, EnumTool.Mace, EnumTool.Warhammer, EnumTool.Poleaxe,
+        EnumTool.Halberd, EnumTool.Polearm, EnumTool.Staff
     ];
 
     private static readonly string[] ArmourWords = ["armor", "helmet", "gambeson", "chainmail", "brigandine"];
-    
+    private static readonly Dictionary<string, FamilyInfo> Families = BuildFamilies();
+
     /// <summary>
     /// gets the category a stack gets sorted into
     /// </summary>
@@ -32,6 +35,11 @@ public static class ItemClassifier
         if (IsFood(stack, world))
         {
             return ItemCategory.Food;
+        }
+
+        if (Families.TryGetValue(family, out FamilyInfo info))
+        {
+            return info.Category;
         }
 
         if (IsWearable(collectible))
@@ -60,6 +68,16 @@ public static class ItemClassifier
     }
 
     /// <summary>
+    /// gets where a family goes inside its category
+    /// </summary>
+    /// <param name="family">the family from <see cref="GetFamily"/></param>
+    /// <returns>the position in the family table, int.MaxValue for families that arent in it so they go last</returns>
+    public static int GetFamilyRank(string family)
+    {
+        return Families.TryGetValue(family, out FamilyInfo info) ? info.Rank : int.MaxValue;
+    }
+
+    /// <summary>
     /// checks if a stack is food, things like pots and bowls will only count if theres actual food in them
     /// </summary>
     private static bool IsFood(ItemStack stack, IWorldAccessor world)
@@ -69,7 +87,7 @@ public static class ItemClassifier
         {
             return mealContainer.GetNonEmptyContents(world, stack).Length > 0;
         }
-        
+
         return collectible.GetNutritionProperties(world, stack, null) != null;
     }
 
@@ -88,4 +106,92 @@ public static class ItemClassifier
     {
         return ArmourWords.Any(family.Contains);
     }
-} 
+
+    private static Dictionary<string, FamilyInfo> BuildFamilies()
+    {
+        Dictionary<string, FamilyInfo> families = new();
+
+        void Add(ItemCategory category, params string[] codes)
+        {
+            foreach (string family in codes)
+            {
+                families.TryAdd(family, new FamilyInfo(category, families.Count));
+            }
+        }
+
+        Add(ItemCategory.Valuables,
+            "gear", "gem", "diamond", "amethyst", "clearquartz", "rosequartz", "smokyquartz", "jonasparts",
+            "jonasframes", "rustypart", "eidolongearbox", "lore", "book", "letter", "envelope"
+        );
+
+        Add(ItemCategory.Tools,
+            "axe", "pickaxe", "shovel", "hoe", "knife", "hammer", "saw", "chisel", "scythe", "shears",
+            "prospectingpick",
+            "tongs", "tongsmetal", "wrench", "crowbar", "cleaver", "snowshovel", "firestarter", "bugnet", "fishingpole",
+            "fishinghook", "wormgrunter", "inkandquill", "padlock", "plumbandsquare", "punchset", "solderingiron",
+            "sewingkit", "scrapweaponkit", "locatormap", "oar",
+            "axehead", "pickaxehead", "shovelhead", "hoehead", "knifeblade", "hammerhead", "sawblade", "scythehead",
+            "prospectingpickhead", "cleaverhead", "helvehammerhead"
+        );
+
+        Add(ItemCategory.WeaponsAndArmour,
+            "blade", "spear", "bow", "sling", "club", "shield", "beenade",
+            "arrow", "bullets", "arrowhead", "spearhead", "bladehead", "bowstave", "armor"
+        );
+
+        Add(ItemCategory.ClothingAndBags,
+            "clothes", "backpack", "hunterbackpack", "basket", "linensack", "miningbag", "miningbagsturdy", "quiver",
+            "glider", "hoovedwearables", "nightvisiondevice"
+        );
+
+        Add(ItemCategory.Food,
+            "flour", "dough", "spice", "salt", "honeycomb"
+        );
+
+        Add(ItemCategory.FarmingAndPlants,
+            "seeds", "treeseed", "sapling", "fruitingbushcutting", "compost", "bonemeal", "potash", "fishingbait",
+            "flower", "fern", "tallfern", "tallgrass", "tallplant", "herb", "herbbundle", "mushroom", "waterlily",
+            "seaweed", "aquatic", "lichen", "hanginglichen", "barrelcactus", "saguarocactus", "silvertorchcactus",
+            "leaves", "leavesbranchy", "leavesnarrow", "bambooleaves", "fallenleaves", "wildvine",
+            "cattailroot", "cattailtops", "papyrusroot", "papyrustops", "tuleroot", "hay", "skep", "wildbeehive",
+            "henbox", "trough", "clayplanter", "flowerpot", "wateringcan"
+        );
+
+        Add(ItemCategory.OresAndMetals,
+            "ore", "crystalizedore", "looseores", "crushed", "powder", "nugget", "ingot", "ironbloom", "metalplate",
+            "metalsheet", "metalbit", "metalchain", "metallamellae", "metalscale", "metalnailsandstrips", "solderbar",
+            "metalblock", "ingotpile", "platepile", "metalpartpile", "saltpeter"
+        );
+
+        Add(ItemCategory.Fuel,
+            "firewood", "agedfirewood", "charcoal", "coal", "coke", "peatbrick", "firewoodpile", "coalpile"
+        );
+
+        Add(ItemCategory.CraftingMaterials,
+            "stick", "flint", "drygrass", "flaxfibers", "flaxtwine", "rope", "cloth", "hide", "leather", "fat", "bone",
+            "antler", "tusk", "feather", "beeswax", "resin", "oakbark", "clay", "lime", "quicklime", "calcined",
+            "blastingpowder", "plantdebris", "pulp", "rot"
+        );
+
+        Add(ItemCategory.Building,
+            "log", "logsection", "debarkedlog", "planks", "plank", "plankslab", "plankstairs", "stone", "rock",
+            "cobblestone", "stonebricks", "stonebrick", "rawbrick", "burnedbrick", "claybricks", "refractorybrick",
+            "refractorybricks", "claytile", "tile", "shingle", "thatch", "mortar", "daubraw", "bamboostakes",
+            "glass", "glasspane", "sand", "gravel", "soil"
+        );
+
+        Add(ItemCategory.ContainersAndCookware,
+            "bowl", "claypot", "dirtyclaypot", "crock", "jug", "woodbucket", "barrel", "storagevessel", "crucible",
+            "ingotmold", "toolmold", "pan", "chest", "trunk", "labeledchest", "crate", "woodencrate",
+            "stationarybasket", "baskettrap", "sieve", "lootvessel"
+        );
+
+        Add(ItemCategory.Lighting,
+            "torch", "lantern", "oillamp", "candle", "bunchocandles", "chandelier", "paperlantern", "torchholder"
+        );
+
+        return families;
+    }
+
+    private readonly record struct FamilyInfo(ItemCategory Category, int Rank);
+}
