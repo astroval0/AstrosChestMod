@@ -36,13 +36,24 @@ public static class ChestLayoutPlanner
         foreach (var category in sorted.GroupBy(entry => entry.Category))
         {
             cursor.TryLeaveCategoryGap(stacksLeft);
+            cursor.TryStartInNextChest(category.Count(), stacksLeft);
 
-            foreach (SortEntry entry in category)
+            foreach (var family in category.GroupBy(entry => entry.Family))
             {
-                layout[cursor.NextSlot] = entry.Stack;
-                cursor.Advance();
+                cursor.TryStartInNextChest(family.Count(), stacksLeft);
+
+                foreach (var sameItem in family.GroupBy(entry => entry.Stack.Collectible))
+                {
+                    cursor.TryStartInNextChest(sameItem.Count(), stacksLeft);
+                    
+                    foreach (SortEntry entry in sameItem)
+                    {
+                        layout[cursor.NextSlot] = entry.Stack;
+                        cursor.Advance();
                 
-                --stacksLeft;
+                        --stacksLeft;
+                    }   
+                }
             }
         }
         
@@ -96,6 +107,22 @@ public static class ChestLayoutPlanner
             if (stacksLeft <= totalSlots - gapSlot)
             {
                 MoveTo(gapSlot);
+            }
+        }
+        
+        /// <summary>
+        /// moves to the start of the next chest when a run of stacks would get split between this chest and the next one
+        /// </summary>
+        /// <param name="runSize">how many stacks are in the run</param>
+        /// <param name="stacksLeft">how many stacks still need a slot</param>
+        public void TryStartInNextChest(int runSize, int stacksLeft)
+        {
+            bool runWouldSplit = NextSlot > chestStartSlot && NextSlot + runSize > ChestEndSlot;
+            bool runFitsInNextChest = HasNextChest && runSize <= shapes[chestIndex + 1].SlotCount;
+            
+            if (runWouldSplit && runFitsInNextChest && stacksLeft <= totalSlots - ChestEndSlot)
+            {
+                MoveTo(ChestEndSlot);
             }
         }
 
