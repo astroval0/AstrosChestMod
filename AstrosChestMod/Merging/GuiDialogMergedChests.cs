@@ -35,6 +35,8 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
     private ElementBounds? contentBounds;
     private (int Width, int Height, float Scale) composedScreen;
     private bool composedAsOneChest;
+    private List<WindowRect> otherWindowsWhenPlaced = [];
+    private bool inventoryOpenWhenPlaced;
 
     public override double DrawOrder => 0.2;
 
@@ -82,8 +84,8 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
 
     /// <summary>
     /// keeps the window up to date. the categories follow what is in the chests, a new screen size or switching to or
-    /// from one big chest in the settings gets a new layout and the inventory gets moved back under the window when it
-    /// ends up on top of it
+    /// from one big chest in the settings gets a new layout and the window gets placed again when other chest windows
+    /// open, close or move or the inventory opens or closes
     /// </summary>
     public void Refresh()
     {
@@ -107,9 +109,9 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
             }
         }
 
-        if (IsInventoryInTheWay())
+        if (HaveSurroundingsChanged())
         {
-            PlaceAboveInventory();
+            PlaceWindow(true);
         }
     }
 
@@ -180,7 +182,7 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
             ComposeSections();
         }
 
-        PlaceAboveInventory();
+        PlaceWindow(false);
     }
 
     /// <summary>
@@ -415,17 +417,62 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
     }
 
     /// <summary>
+    /// puts the window in its spot. with no other chest windows open it goes in the middle with the inventory right
+    /// under it, otherwise it goes in the closest spot that doesnt cover them or the inventory. when the window only has
+    /// to make room it just moves if its covering something, so it stays where xrb or the player put it
+    /// </summary>
+    /// <param name="onlyIfCovering">true to leave the window alone when it isnt covering anything</param>
+    private void PlaceWindow(bool onlyIfCovering)
+    {
+        otherWindowsWhenPlaced = FindOtherWindows();
+        inventoryOpenWhenPlaced = IsInventoryOpen();
+        if (SingleComposer == null || capi.Settings.Bool["immersiveMouseMode"])
+        {
+            return;
+        }
+
+        List<WindowRect> taken = [.. otherWindowsWhenPlaced];
+        GuiComposer? inventory = FindInventoryComposer();
+        if (inventoryOpenWhenPlaced && inventory != null)
+        {
+            taken.Add(GetRect(inventory.Bounds));
+        }
+
+        WindowRect window = GetRect(SingleComposer.Bounds);
+        if (onlyIfCovering && !taken.Any(window.Overlaps))
+        {
+            return;
+        }
+
+        if (otherWindowsWhenPlaced.Count == 0)
+        {
+            PlaceAboveInventory();
+            return;
+        }
+
+        WindowRect wanted = onlyIfCovering ? window : GetSpotAboveInventory(window);
+        WindowRect spot = WindowSpotFinder.FindFreeSpot(wanted, taken, GetPlacementArea(), InventoryGap);
+        MoveTo(SingleComposer.Bounds, spot.X, spot.Y);
+    }
+
+    /// <summary>
+    /// checks if other chest windows opened, closed or moved or the inventory opened or closed since the window got
+    /// placed. the player moving this window or the inventory doesnt count, those stay where they got put
+    /// </summary>
+    /// <returns>true if the window should be placed again</returns>
+    private bool HaveSurroundingsChanged()
+    {
+        bool inventoryChanged = IsInventoryOpen() != inventoryOpenWhenPlaced;
+        return inventoryChanged || !FindOtherWindows().SequenceEqual(otherWindowsWhenPlaced);
+    }
+
+    /// <summary>
     /// puts the window in the middle of the screen with the players inventory right under it, the same way xrb lines up
     /// chest windows so the two dont fight over where things go. the inventory only gets moved while its open because the
     /// game builds it again every time it opens. in creative the inventory stays at the bottom where the game has it
     /// </summary>
     private void PlaceAboveInventory()
     {
-        if (SingleComposer == null || capi.Settings.Bool["immersiveMouseMode"])
-        {
-            return;
-        }
-
         (double frameWidth, double frameHeight) = GetFrameSize();
         ElementBounds window = SingleComposer.Bounds;
         double windowWidth = window.OuterWidth / RuntimeEnv.GUIScale;
@@ -454,24 +501,61 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
     }
 
     /// <summary>
-    /// checks if the open player inventory is on top of this window, like when it just got opened and the game put it
-    /// back in the middle of the screen
+    /// gets the spot in the middle of the screen right above the inventory where it is now, or in the middle of the
+    /// screen when the inventory isnt open
     /// </summary>
-    /// <returns>true if they overlap</returns>
-    private bool IsInventoryInTheWay()
+    /// <param name="window">the spot of the window now, for its size</param>
+    /// <returns>the spot</returns>
+    private WindowRect GetSpotAboveInventory(WindowRect window)
     {
-        GuiDialog? inventoryWindow = FindInventoryWindow();
-        GuiComposer? inventory = inventoryWindow?.Composers["maininventory"];
-        if (inventoryWindow == null || inventory == null || !inventoryWindow.IsOpened())
+        (double frameWidth, double frameHeight) = GetFrameSize();
+        double x = (frameWidth - window.Width) / 2;
+        GuiComposer? inventory = FindInventoryComposer();
+        if (inventory == null || !IsInventoryOpen())
         {
-            return false;
+            return window with { X = x, Y = (frameHeight - window.Height) / 2 };
         }
 
-        ElementBounds window = SingleComposer.Bounds;
-        ElementBounds slots = inventory.Bounds;
-        bool overlapX = window.absX < slots.absX + slots.OuterWidth && slots.absX < window.absX + window.OuterWidth;
-        bool overlapY = window.absY < slots.absY + slots.OuterHeight && slots.absY < window.absY + window.OuterHeight;
-        return overlapX && overlapY;
+        return window with { X = x, Y = GetRect(inventory.Bounds).Y - InventoryGap - window.Height };
+    }
+
+    /// <summary>
+    /// gets the part of the screen the window gets placed in when it has to make room, with room left at the top and
+    /// bottom of the screen for the sort button and the hotbar
+    /// </summary>
+    /// <returns>the area in unscaled units</returns>
+    private WindowRect GetPlacementArea()
+    {
+        (double frameWidth, double frameHeight) = GetFrameSize();
+        return new WindowRect(0, ScreenEdgeSpace, frameWidth, frameHeight - 2 * ScreenEdgeSpace);
+    }
+
+    /// <summary>
+    /// finds where the other open block windows are, mostly chest windows. this window shouldnt cover them so their
+    /// checkboxes stay clickable
+    /// </summary>
+    /// <returns>their spots, sorted so the order the game keeps the windows in doesnt matter</returns>
+    private List<WindowRect> FindOtherWindows()
+    {
+        return capi.Gui.OpenedGuis
+            .OfType<GuiDialogBlockEntity>()
+            .Where(dialog => dialog != this && dialog.SingleComposer != null)
+            .Select(dialog => GetRect(dialog.SingleComposer.Bounds))
+            .OrderBy(rect => rect.X)
+            .ThenBy(rect => rect.Y)
+            .ToList();
+    }
+
+    /// <summary>
+    /// gets where a window is on the screen
+    /// </summary>
+    /// <param name="bounds">the bounds of the window</param>
+    /// <returns>its spot in unscaled units</returns>
+    private static WindowRect GetRect(ElementBounds bounds)
+    {
+        double scale = RuntimeEnv.GUIScale;
+        return new WindowRect(bounds.absX / scale, bounds.absY / scale, bounds.OuterWidth / scale,
+            bounds.OuterHeight / scale);
     }
 
     /// <summary>
@@ -500,6 +584,15 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
     private GuiDialog? FindInventoryWindow()
     {
         return capi.Gui.LoadedGuis.FirstOrDefault(dialog => dialog.ToggleKeyCombinationCode == InventoryToggleCode);
+    }
+
+    /// <summary>
+    /// checks if the players inventory is open
+    /// </summary>
+    /// <returns>true if its open</returns>
+    private bool IsInventoryOpen()
+    {
+        return FindInventoryWindow()?.IsOpened() == true;
     }
 
     /// <summary>
