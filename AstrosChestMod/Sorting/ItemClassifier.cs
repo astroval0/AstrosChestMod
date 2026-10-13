@@ -141,7 +141,7 @@ public static class ItemClassifier
 
         Add(ItemCategory.Valuables,
             "gear", "gem", "diamond", "amethyst", "clearquartz", "rosequartz", "smokyquartz", "jonasparts",
-            "jonasframes", "rustypart", "eidolongearbox", "lore", "book", "letter", "envelope"
+            "jonasframes", "rustypart", "eidolongearbox", "tobtlocatorpart", "lore", "book", "letter", "envelope"
         );
 
         Add(ItemCategory.Tools,
