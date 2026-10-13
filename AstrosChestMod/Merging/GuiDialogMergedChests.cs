@@ -163,7 +163,8 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
     }
 
     /// <summary>
-    /// builds the window again, as one big chest or with a section for every chest depending on the settings
+    /// builds the window again, as one big chest or with a section for every chest depending on the settings. nothing in
+    /// it gets focus when its built, space and enter would tick a checkbox that has focus
     /// </summary>
     private void ComposeWindow()
     {
@@ -206,7 +207,7 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
             AddSectionSlots(composer, i, grid.Positions[i].X, grid.Positions[i].Y + HeaderHeight);
         }
 
-        SingleComposer = composer.EndClip().Compose();
+        SingleComposer = composer.EndClip().Compose(focusFirstElement: false);
         SetUpScrollbar(grid.Height, maxHeight);
 
         for (int i = 0; i < chests.Count; i++)
@@ -247,7 +248,7 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
             .EndClip()
             .AddSwitch(OnOneChestMergeToggled, checkboxBounds, "mergedall", CheckboxSize, 2)
             .AddHoverText("unmerge these chests", CairoFont.WhiteSmallText(), 200, checkboxBounds.FlatCopy())
-            .Compose();
+            .Compose(focusFirstElement: false);
         SetUpScrollbar(height, maxHeight);
 
         SingleComposer.GetSwitch("mergedall").SetValue(true);
