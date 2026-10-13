@@ -16,6 +16,7 @@ public class ChestSortFeature : IDisposable
     private readonly ConfigFile configFile;
     private readonly OpenChestFinder chestFinder;
     private readonly ChestSorter chestSorter;
+    private readonly ChestOrder chestOrder;
 
     private readonly GuiDialogSortButton sortButton;
     private readonly long buttonRefreshListenerId;
@@ -27,10 +28,12 @@ public class ChestSortFeature : IDisposable
     /// </summary>
     /// <param name="capi"> the client api </param>
     /// <param name="configFile">the mod config</param>
-    public ChestSortFeature(ICoreClientAPI capi, ConfigFile configFile)
+    /// <param name="chestOrder">decides which chest gets filled first</param>
+    public ChestSortFeature(ICoreClientAPI capi, ConfigFile configFile, ChestOrder chestOrder)
     {
         this.capi = capi;
         this.configFile = configFile;
+        this.chestOrder = chestOrder;
         
         chestFinder = new OpenChestFinder(capi);
         chestSorter = new ChestSorter(capi, new SlotMover(capi));
@@ -81,7 +84,7 @@ public class ChestSortFeature : IDisposable
         lastSortMs = nowMs;
 
         AstrosChestConfig config = configFile.Current;
-        SortResult result = chestSorter.Sort(chests, config);
+        SortResult result = chestSorter.Sort(chestOrder.Arrange(chests), config);
 
         if (config.ShowSortSummary)
         {

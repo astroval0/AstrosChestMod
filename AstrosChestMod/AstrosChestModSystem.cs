@@ -1,4 +1,5 @@
 using AstrosChestMod.Config;
+using AstrosChestMod.Inventory;
 using AstrosChestMod.Sorting;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
@@ -27,7 +28,8 @@ public class AstrosChestModSystem : ModSystem
     public override void StartClientSide(ICoreClientAPI api)
     {
         configFile = new ConfigFile(api, Mod);
-        chestSort = new ChestSortFeature(api, configFile);
+        ChestOrder chestOrder = new();
+        chestSort = new ChestSortFeature(api, configFile, chestOrder);
     }
 
     /// <summary>
