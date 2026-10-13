@@ -6,5 +6,4 @@ public class AstrosChestConfig
     public bool ShowSortSummary { get; set; } = true;
     public bool StartCategoriesOnNewRow { get; set; } = true;
     public bool KeepGroupsInOneChest { get; set; } = true;
-    public bool MergeChestWindows { get; set; }
 }

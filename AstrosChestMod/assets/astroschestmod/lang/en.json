@@ -7,5 +7,18 @@
   "setting-startcategoriesonnewrow": "start categories on a new row",
   "setting-startcategoriesonnewrow-comment": "leaves a gap so every category starts on its own row",
   "setting-keepgroupsinonechest": "keep groups in one chest",
-  "setting-keepgroupsinonechest-comment": "moves a group of the same items to the next chest instead of splitting it between two, when there is room"
+  "setting-keepgroupsinonechest-comment": "moves a group of the same items to the next chest instead of splitting it between two, when there is room",
+  "category-valuables": "Valuables",
+  "category-tools": "Tools",
+  "category-weaponsandarmour": "Weapons & Armour",
+  "category-clothingandbags": "Clothing & Bags",
+  "category-food": "Food",
+  "category-farmingandplants": "Farming & Plants",
+  "category-oresandmetals": "Ores & Metals",
+  "category-fuel": "Fuel",
+  "category-craftingmaterials": "Crafting Materials",
+  "category-building": "Building",
+  "category-containersandcookware": "Containers & Cookware",
+  "category-lighting": "Lighting",
+  "category-empty": "Empty"
 }

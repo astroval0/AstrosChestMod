@@ -34,7 +34,7 @@ public class AstrosChestModSystem : ModSystem
         configFile = new ConfigFile(api, Mod);
         ChestOrder chestOrder = new(api, Mod);
         chestSort = new ChestSortFeature(api, configFile, chestOrder);
-        chestMerge = new ChestMergeFeature(api, configFile);
+        chestMerge = new ChestMergeFeature(api, chestOrder, Mod.Logger);
 
         harmony = new Harmony(Mod.Info.ModID);
         harmony.PatchAll(typeof(AstrosChestModSystem).Assembly);
