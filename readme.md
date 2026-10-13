@@ -11,12 +11,23 @@ This is a human written Vintage Story mod that aims to improve the experience fo
 - sorts every open chest like it's one big chest, in this order: valuables, tools, weapons and armor, clothing and bags, food, farming and plants, ores and metals, fuel, crafting materials, building, containers and cookware, lighting
 - every category starts on its own row
 - a group of the same items goes to the next chest instead of getting split between two, if there's room
+- chests remember the order they were first sorted in, so your stuff ends up in the same chests every time
 
 works on chests, trunks, reed chests, labeled chests and storage vessels. crates and barrels are left alone.
+
+## merging chests
+
+- every chest window gets a checkbox next to its title, tick it to move that chest into one window with the others you merged
+- chests you merge together stay together, opening one of them opens the rest that are in reach
+- untick a chest in the merged window to give it its own window back, it opens on its own after that
+- the merged window fits itself to your screen and sits right above your inventory without covering your other chests
+- turn on MergeIntoOneChest to show all the merged slots in one grid like it's one big chest, sorting treats it like one chest too
 
 ## client side only
 
 every move is a normal inventory move, same as if you clicked it yourself, so the server does not need the mod. it works on any server.
+
+opening a merged group just right clicks the other chests for you, so that works on any server too.
 
 ## settings
 
@@ -30,6 +41,7 @@ the rest is in `VintagestoryData/ModConfig/astroschestmod.json`. if you have [Co
 | ShowSortSummary | true | says in chat how many stacks got merged and moved |
 | StartCategoriesOnNewRow | true | leaves a gap so every category starts on its own row |
 | KeepGroupsInOneChest | true | moves a group to the next chest instead of splitting it |
+| MergeIntoOneChest | false | shows the merged chests as one big chest |
 
 ## building
 
