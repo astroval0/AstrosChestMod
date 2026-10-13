@@ -18,6 +18,9 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
     private const double SectionGap = 14;
     private const double InsetPadding = 6;
     private const double TitleBarSpace = 20;
+    private const double SearchWidth = 250;
+    private const double SearchHeight = 30;
+    private const double SearchSpace = SearchHeight + 8;
     private const double ScrollbarSpace = 20;
     private const double InventoryGap = 6;
     private const double ScreenEdgeSpace = 100;
@@ -27,6 +30,7 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
     private readonly ConfigFile configFile;
     private readonly Action<List<MergedChest>> onChestsUnmerged;
     private readonly Action onWindowClosed;
+    private readonly ItemSearch search;
     private readonly List<(ElementBounds Bounds, double Y)> slotGrids = [];
     private List<MergedChest> chests = [];
     private MergedChestInventory? oneChest;
@@ -59,6 +63,7 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
         this.configFile = configFile;
         this.onChestsUnmerged = onChestsUnmerged;
         this.onWindowClosed = onWindowClosed;
+        search = new ItemSearch(capi.World);
     }
 
     /// <summary>
@@ -116,10 +121,12 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
     }
 
     /// <summary>
-    /// lets the feature close the chests once the window is gone, the base would only close the chest the window sits on
+    /// lets the feature close the chests once the window is gone, the base would only close the chest the window sits on.
+    /// the search starts over the next time the window opens
     /// </summary>
     public override void OnGuiClosed()
     {
+        search.SetText("");
         onWindowClosed();
     }
 
@@ -146,6 +153,25 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
     }
 
     /// <summary>
+    /// keeps all the keys in the window while the search box is being typed in, they would move the player or close the
+    /// inventory otherwise
+    /// </summary>
+    /// <returns>true while the search box has focus</returns>
+    public override bool CaptureAllInputs()
+    {
+        return IsOpened() && IsSearchFocused();
+    }
+
+    /// <summary>
+    /// takes the focus off the search box too when another window gets clicked, it would keep all the keys otherwise
+    /// </summary>
+    public override void UnFocus()
+    {
+        base.UnFocus();
+        SingleComposer?.UnfocusOwnElements();
+    }
+
+    /// <summary>
     /// moves the block position of the window onto one of its chests. a chest with chest in its code gets picked when
     /// there is one, mods like xrb only count a window as a chest window if the block under it has chest in its code
     /// and trunks dont
@@ -164,10 +190,12 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
 
     /// <summary>
     /// builds the window again, as one big chest or with a section for every chest depending on the settings. nothing in
-    /// it gets focus when its built, space and enter would tick a checkbox that has focus
+    /// it gets focus when its built, space and enter would tick a checkbox that has focus. the search box keeps what was
+    /// typed in it, and its focus when it was being typed in
     /// </summary>
     private void ComposeWindow()
     {
+        bool searchFocused = IsSearchFocused();
         composedScreen = GetScreen();
         composedAsOneChest = configFile.Current.MergeIntoOneChest;
         oneChest?.Dispose();
@@ -183,6 +211,7 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
             ComposeSections();
         }
 
+        SetUpSearchBox(searchFocused);
         PlaceWindow(false);
     }
 
@@ -244,8 +273,8 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
             .EndChildElements();
 
         slotGrids.Add((slotBounds, CategoriesHeight));
-        SingleComposer = composer.AddItemSlotGrid(oneChest, capi.Network.SendPacketClient, columns, slotBounds, "slots")
-            .EndClip()
+        AddSlotGrid(composer, oneChest, capi.Network.SendPacketClient, columns, slotBounds, "slots");
+        SingleComposer = composer.EndClip()
             .AddSwitch(OnOneChestMergeToggled, checkboxBounds, "mergedall", CheckboxSize, 2)
             .AddHoverText("unmerge these chests", CairoFont.WhiteSmallText(), 200, checkboxBounds.FlatCopy())
             .Compose(focusFirstElement: false);
@@ -257,9 +286,9 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
     }
 
     /// <summary>
-    /// starts building the window around content of this size, with the background, the title bar, the inset and a
-    /// scrollbar when the content is taller than it can get. it ends inside the scrolling content, the caller adds the
-    /// rest and closes the content and the clip
+    /// starts building the window around content of this size, with the background, the title bar, the search box, the
+    /// inset and a scrollbar when the content is taller than it can get. it ends inside the scrolling content, the caller
+    /// adds the rest and closes the content and the clip
     /// </summary>
     /// <param name="width">how wide the content is</param>
     /// <param name="height">how tall the content is</param>
@@ -270,13 +299,16 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
         double padding = GuiStyle.ElementToDialogPadding;
         double visibleHeight = Math.Min(height, maxHeight);
         bool scrolls = height > visibleHeight;
+        double searchY = padding + TitleBarSpace;
 
         ElementBounds visibleBounds = ElementBounds.Fixed(0, 0, width, visibleHeight);
         ElementBounds insetBounds =
             visibleBounds.ForkBoundingParent(InsetPadding, InsetPadding, InsetPadding, InsetPadding);
         ElementBounds dialogBounds = insetBounds
-            .ForkBoundingParent(padding, padding + TitleBarSpace, padding + (scrolls ? ScrollbarSpace : 0), padding)
+            .ForkBoundingParent(padding, searchY + SearchSpace, padding + (scrolls ? ScrollbarSpace : 0), padding)
             .WithAlignment(EnumDialogArea.CenterMiddle);
+        ElementBounds searchBounds =
+            ElementBounds.Fixed(padding, searchY, Math.Min(SearchWidth, insetBounds.fixedWidth), SearchHeight);
         ElementBounds clipBounds = visibleBounds.CopyOffsetedSibling();
         contentBounds = ElementBounds.Fixed(0, 0, width, height);
 
@@ -284,6 +316,7 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
         GuiComposer composer = capi.Gui.CreateCompo("astroschestmod-mergedchests", dialogBounds)
             .AddShadedDialogBG(ElementBounds.Fill)
             .AddDialogTitleBar(Title, OnTitleBarClose)
+            .AddTextInput(searchBounds, search.SetText, key: "search")
             .AddInset(insetBounds);
 
         if (scrolls)
@@ -293,6 +326,31 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
         }
 
         return composer.BeginClip(clipBounds).BeginChildElements(contentBounds);
+    }
+
+    /// <summary>
+    /// puts what was searched back in the search box of a window that just got built, and gives the box its focus back
+    /// when it was being typed in
+    /// </summary>
+    /// <param name="focus">true if the search box had focus</param>
+    private void SetUpSearchBox(bool focus)
+    {
+        GuiElementTextInput searchBox = SingleComposer.GetTextInput("search");
+        searchBox.SetPlaceHolderText(Lang.Get("Search..."));
+        searchBox.SetValue(search.Text);
+        if (focus)
+        {
+            SingleComposer.FocusElement(searchBox.TabIndex);
+        }
+    }
+
+    /// <summary>
+    /// checks if the search box is being typed in
+    /// </summary>
+    /// <returns>true if it has focus</returns>
+    private bool IsSearchFocused()
+    {
+        return SingleComposer?.GetTextInput("search")?.HasFocus == true;
     }
 
     /// <summary>
@@ -367,8 +425,25 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
         MergedChest chest = chests[index];
         ElementBounds slotBounds = GetSlotGridBounds(chest.Inventory.Count, chest.Columns, x, y);
         slotGrids.Add((slotBounds, y));
-        composer.AddItemSlotGrid(chest.Inventory, packet => SendChestPacket(chest, packet), chest.Columns, slotBounds,
+        AddSlotGrid(composer, chest.Inventory, packet => SendChestPacket(chest, packet), chest.Columns, slotBounds,
             "slots" + index);
+    }
+
+    /// <summary>
+    /// adds a slot grid that dims the slots the search doesnt find, the same way the composer adds its own slot grids
+    /// </summary>
+    /// <param name="composer">the composer the window is being built with</param>
+    /// <param name="inventory">the inventory the slots are in</param>
+    /// <param name="sendPacket">sends the packets for clicks on the slots</param>
+    /// <param name="columns">how many columns the grid has</param>
+    /// <param name="bounds">the bounds of the grid</param>
+    /// <param name="key">the key the grid gets found with</param>
+    private void AddSlotGrid(GuiComposer composer, IInventory inventory, Action<object> sendPacket, int columns,
+        ElementBounds bounds, string key)
+    {
+        GuiElementSearchSlotGrid grid = new(capi, inventory, sendPacket, columns, bounds, search);
+        composer.AddInteractiveElement(grid, key);
+        GuiElementItemSlotGridBase.UpdateLastSlotGridFlag(composer);
     }
 
     /// <summary>
@@ -405,7 +480,7 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
     {
         double padding = GuiStyle.ElementToDialogPadding;
         double windowWidth = 2 * InsetPadding + 2 * padding + ScrollbarSpace;
-        double windowHeight = 2 * InsetPadding + 2 * padding + TitleBarSpace;
+        double windowHeight = 2 * InsetPadding + 2 * padding + TitleBarSpace + SearchSpace;
 
         GuiComposer? inventory = FindInventoryComposer();
         double inventoryHeight =
