@@ -1,4 +1,5 @@
 using System.Reflection;
+using AstrosChestMod.Config;
 using AstrosChestMod.Inventory;
 using HarmonyLib;
 using Vintagestory.API.Client;
@@ -34,15 +35,16 @@ public class ChestMergeFeature : IDisposable
     /// sets up merging chests into one window, the harmony patches get to it through Active
     /// </summary>
     /// <param name="capi">the client api</param>
+    /// <param name="configFile">the mod config, the merged window reads if it should be one big chest from it</param>
     /// <param name="chestOrder">decides the order of the chests in the merged window</param>
     /// <param name="logger">the mod logger</param>
-    public ChestMergeFeature(ICoreClientAPI capi, ChestOrder chestOrder, ILogger logger)
+    public ChestMergeFeature(ICoreClientAPI capi, ConfigFile configFile, ChestOrder chestOrder, ILogger logger)
     {
         this.capi = capi;
         this.chestOrder = chestOrder;
         this.logger = logger;
 
-        mergedWindow = new GuiDialogMergedChests(capi, OnChestUnmerged, OnMergedWindowClosed);
+        mergedWindow = new GuiDialogMergedChests(capi, configFile, OnChestsUnmerged, OnMergedWindowClosed);
         refreshListenerId = capi.Event.RegisterGameTickListener(OnRefresh, RefreshMs);
         Active = this;
     }
@@ -110,7 +112,7 @@ public class ChestMergeFeature : IDisposable
             return false;
         }
 
-        RemoveFromMergedWindow(chest);
+        RemoveFromMergedWindow([chest]);
         CloseChest(chest);
         capi.Gui.PlaySound(chest.CloseSound);
         return true;
@@ -131,13 +133,13 @@ public class ChestMergeFeature : IDisposable
     }
 
     /// <summary>
-    /// gives a chest its own window back when its checkbox in the merged window gets unticked, next frame for the same
-    /// reason as merging
+    /// gives chests their own windows back when their checkbox in the merged window gets unticked, next frame for the
+    /// same reason as merging
     /// </summary>
-    /// <param name="chest">the chest to unmerge</param>
-    private void OnChestUnmerged(MergedChest chest)
+    /// <param name="chests">the chests to unmerge</param>
+    private void OnChestsUnmerged(List<MergedChest> chests)
     {
-        capi.Event.EnqueueMainThreadTask(() => PopOutChest(chest), "astroschestmod-merge");
+        capi.Event.EnqueueMainThreadTask(() => PopOutChests(chests), "astroschestmod-merge");
     }
 
     /// <summary>
@@ -191,12 +193,12 @@ public class ChestMergeFeature : IDisposable
     }
 
     /// <summary>
-    /// takes a chest out of the merged window, the window closes when it was the last one. the chest stays open
+    /// takes chests out of the merged window, the window closes when none are left. the chests stay open
     /// </summary>
-    /// <param name="chest">the chest to take out</param>
-    private void RemoveFromMergedWindow(MergedChest chest)
+    /// <param name="chests">the chests to take out</param>
+    private void RemoveFromMergedWindow(List<MergedChest> chests)
     {
-        List<MergedChest> rest = mergedWindow.Chests.Where(other => other != chest).ToList();
+        List<MergedChest> rest = mergedWindow.Chests.Where(other => !chests.Contains(other)).ToList();
         if (rest.Count > 0)
         {
             mergedWindow.ShowChests(rest);
@@ -208,18 +210,22 @@ public class ChestMergeFeature : IDisposable
     }
 
     /// <summary>
-    /// takes a chest out of the merged window and gives it its own window again, without closing the chest
+    /// takes chests out of the merged window and gives them their own windows again, without closing them
     /// </summary>
-    /// <param name="chest">the chest</param>
-    private void PopOutChest(MergedChest chest)
+    /// <param name="chests">the chests</param>
+    private void PopOutChests(List<MergedChest> chests)
     {
-        if (!mergedWindow.Chests.Contains(chest))
+        List<MergedChest> merged = chests.Where(mergedWindow.Chests.Contains).ToList();
+        if (merged.Count == 0)
         {
             return;
         }
 
-        RemoveFromMergedWindow(chest);
-        OpenChestWindow(chest);
+        RemoveFromMergedWindow(merged);
+        foreach (MergedChest chest in merged)
+        {
+            OpenChestWindow(chest);
+        }
     }
 
     /// <summary>

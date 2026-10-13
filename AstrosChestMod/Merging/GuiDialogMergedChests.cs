@@ -1,3 +1,4 @@
+using AstrosChestMod.Config;
 using AstrosChestMod.Sorting;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
@@ -21,15 +22,19 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
     private const double InventoryGap = 6;
     private const double ScreenEdgeSpace = 100;
     private const double CreativeHotbarSpace = 105;
-    private const double MinSectionSpace = 100;
+    private const double MinContentSpace = 100;
 
-    private readonly Action<MergedChest> onChestUnmerged;
+    private readonly ConfigFile configFile;
+    private readonly Action<List<MergedChest>> onChestsUnmerged;
     private readonly Action onWindowClosed;
     private readonly List<(ElementBounds Bounds, double Y)> slotGrids = [];
     private List<MergedChest> chests = [];
+    private MergedChestInventory? oneChest;
+    private List<InventoryBase> categoryInventories = [];
     private string[] shownCategories = [];
     private ElementBounds? contentBounds;
     private (int Width, int Height, float Scale) composedScreen;
+    private bool composedAsOneChest;
 
     public override double DrawOrder => 0.2;
 
@@ -40,17 +45,20 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
     /// treat it like a chest window, it gets moved onto one of its chests every time chests get shown
     /// </summary>
     /// <param name="capi">the client api</param>
-    /// <param name="onChestUnmerged">called when the checkbox of a chest gets unticked</param>
+    /// <param name="configFile">the mod config, it decides if the chests get merged into one big chest</param>
+    /// <param name="onChestsUnmerged">called with the chests whose checkbox got unticked</param>
     /// <param name="onWindowClosed">called when the window gets closed</param>
-    public GuiDialogMergedChests(ICoreClientAPI capi, Action<MergedChest> onChestUnmerged, Action onWindowClosed)
+    public GuiDialogMergedChests(ICoreClientAPI capi, ConfigFile configFile,
+        Action<List<MergedChest>> onChestsUnmerged, Action onWindowClosed)
         : base(Title, new BlockPos(0), capi)
     {
-        this.onChestUnmerged = onChestUnmerged;
+        this.configFile = configFile;
+        this.onChestsUnmerged = onChestsUnmerged;
         this.onWindowClosed = onWindowClosed;
     }
 
     /// <summary>
-    /// shows these chests in the window, one section per chest in the order of the list
+    /// shows these chests in the window in the order of the list, one section per chest or all of them as one big chest
     /// </summary>
     /// <param name="newChests">the chests to show</param>
     public void ShowChests(List<MergedChest> newChests)
@@ -66,11 +74,14 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
     public void ClearChests()
     {
         chests = [];
+        oneChest?.Dispose();
+        oneChest = null;
     }
 
     /// <summary>
-    /// keeps the window up to date. the categories follow what is in the chests, a new screen size gets a new layout and
-    /// the inventory gets moved back under the window when it ends up on top of it
+    /// keeps the window up to date. the categories follow what is in the chests, a new screen size or switching to or
+    /// from one big chest in the settings gets a new layout and the inventory gets moved back under the window when it
+    /// ends up on top of it
     /// </summary>
     public void Refresh()
     {
@@ -79,15 +90,15 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
             return;
         }
 
-        if (composedScreen != GetScreen())
+        if (composedScreen != GetScreen() || composedAsOneChest != configFile.Current.MergeIntoOneChest)
         {
             ComposeWindow();
             return;
         }
 
-        for (int i = 0; i < chests.Count; i++)
+        for (int i = 0; i < categoryInventories.Count; i++)
         {
-            string categories = GetCategories(chests[i]);
+            string categories = GetCategories(categoryInventories[i]);
             if (categories != shownCategories[i])
             {
                 ShowCategories(i, categories);
@@ -106,6 +117,15 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
     public override void OnGuiClosed()
     {
         onWindowClosed();
+    }
+
+    /// <summary>
+    /// gets rid of the window and stops the one big chest from following the chests
+    /// </summary>
+    public override void Dispose()
+    {
+        base.Dispose();
+        oneChest?.Dispose();
     }
 
     /// <summary>
@@ -139,29 +159,120 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
     }
 
     /// <summary>
-    /// builds the window with a section for every chest, spread out so the window fits the screen. it scrolls when the
-    /// sections still dont fit
+    /// builds the window again, as one big chest or with a section for every chest depending on the settings
     /// </summary>
     private void ComposeWindow()
     {
         composedScreen = GetScreen();
+        composedAsOneChest = configFile.Current.MergeIntoOneChest;
+        oneChest?.Dispose();
+        oneChest = null;
+        slotGrids.Clear();
+
+        if (composedAsOneChest)
+        {
+            ComposeOneChest();
+        }
+        else
+        {
+            ComposeSections();
+        }
+
+        PlaceAboveInventory();
+    }
+
+    /// <summary>
+    /// builds the window with a section for every chest, spread out so the window fits the screen
+    /// </summary>
+    private void ComposeSections()
+    {
+        (double maxWidth, double maxHeight) = GetSpaceForContent();
+        List<SectionSize> sizes = chests.Select(GetSectionSize).ToList();
+        SectionGrid grid = SectionGridPlanner.Plan(sizes, maxWidth, maxHeight, GetScreenAspectRatio(), SectionGap);
+
+        GuiComposer composer = StartWindow(grid.Width, grid.Height, maxHeight);
+        for (int i = 0; i < chests.Count; i++)
+        {
+            AddSectionHeader(composer, i, grid.Positions[i].X, grid.Positions[i].Y);
+        }
+
+        composer.EndChildElements();
+        for (int i = 0; i < chests.Count; i++)
+        {
+            AddSectionSlots(composer, i, grid.Positions[i].X, grid.Positions[i].Y + HeaderHeight);
+        }
+
+        SingleComposer = composer.EndClip().Compose();
+        SetUpScrollbar(grid.Height, maxHeight);
+
+        for (int i = 0; i < chests.Count; i++)
+        {
+            SingleComposer.GetSwitch("merged" + i).SetValue(true);
+        }
+
+        categoryInventories = chests.Select(chest => chest.Inventory).ToList();
+        ShowAllCategories();
+    }
+
+    /// <summary>
+    /// builds the window as one big chest, the slots of every chest go in one grid with the categories of all of them on
+    /// top and one checkbox in the title bar. clicks on a slot go to its chest through the one big chest, the grid only
+    /// sends the packets for spreading a stack by dragging and those already say which chests they are for
+    /// </summary>
+    private void ComposeOneChest()
+    {
+        oneChest = new MergedChestInventory(capi, chests, SendChestPacket);
+        (double maxWidth, double maxHeight) = GetSpaceForContent();
+        int columns = PickOneChestColumns(oneChest.Count, maxWidth, maxHeight);
+        ElementBounds slotBounds = GetSlotGridBounds(oneChest.Count, columns, 0, CategoriesHeight);
+        double width = slotBounds.fixedWidth;
+        double height = CategoriesHeight + slotBounds.fixedHeight;
+        ElementBounds categoriesBounds = ElementBounds.Fixed(0, 0, width, CategoriesHeight);
+        double titleWidth = GetTextWidth(Title, CairoFont.WhiteSmallText());
+        ElementBounds checkboxBounds = ElementBounds.Fixed(GuiStyle.ElementToDialogPadding + titleWidth + 8,
+            (GuiStyle.TitleBarHeight - CheckboxSize) / 2, CheckboxSize, CheckboxSize);
+
+        GuiComposer composer = StartWindow(width, height, maxHeight)
+            .AddDynamicText(" ", CairoFont.WhiteDetailText(), categoriesBounds, "categories0")
+            .AddHoverText(" ", CairoFont.WhiteSmallText(), 300, categoriesBounds.FlatCopy(), "categorieshover0")
+            .EndChildElements();
+
+        slotGrids.Add((slotBounds, CategoriesHeight));
+        SingleComposer = composer.AddItemSlotGrid(oneChest, capi.Network.SendPacketClient, columns, slotBounds, "slots")
+            .EndClip()
+            .AddSwitch(OnOneChestMergeToggled, checkboxBounds, "mergedall", CheckboxSize, 2)
+            .AddHoverText("unmerge these chests", CairoFont.WhiteSmallText(), 200, checkboxBounds.FlatCopy())
+            .Compose();
+        SetUpScrollbar(height, maxHeight);
+
+        SingleComposer.GetSwitch("mergedall").SetValue(true);
+        categoryInventories = [oneChest];
+        ShowAllCategories();
+    }
+
+    /// <summary>
+    /// starts building the window around content of this size, with the background, the title bar, the inset and a
+    /// scrollbar when the content is taller than it can get. it ends inside the scrolling content, the caller adds the
+    /// rest and closes the content and the clip
+    /// </summary>
+    /// <param name="width">how wide the content is</param>
+    /// <param name="height">how tall the content is</param>
+    /// <param name="maxHeight">how tall the content can get before it has to scroll</param>
+    /// <returns>the composer</returns>
+    private GuiComposer StartWindow(double width, double height, double maxHeight)
+    {
         double padding = GuiStyle.ElementToDialogPadding;
-        (double frameWidth, double frameHeight) = GetFrameSize();
-        (double maxWidth, double maxHeight) = GetSpaceForSections();
-        SectionGrid grid = SectionGridPlanner.Plan(chests.Select(GetSectionSize).ToList(), maxWidth, maxHeight,
-            frameWidth / frameHeight, SectionGap);
+        double visibleHeight = Math.Min(height, maxHeight);
+        bool scrolls = height > visibleHeight;
 
-        double visibleHeight = Math.Min(grid.Height, maxHeight);
-        bool scrolls = grid.Height > visibleHeight;
-
-        ElementBounds visibleBounds = ElementBounds.Fixed(0, 0, grid.Width, visibleHeight);
+        ElementBounds visibleBounds = ElementBounds.Fixed(0, 0, width, visibleHeight);
         ElementBounds insetBounds =
             visibleBounds.ForkBoundingParent(InsetPadding, InsetPadding, InsetPadding, InsetPadding);
         ElementBounds dialogBounds = insetBounds
             .ForkBoundingParent(padding, padding + TitleBarSpace, padding + (scrolls ? ScrollbarSpace : 0), padding)
             .WithAlignment(EnumDialogArea.CenterMiddle);
         ElementBounds clipBounds = visibleBounds.CopyOffsetedSibling();
-        contentBounds = ElementBounds.Fixed(0, 0, grid.Width, grid.Height);
+        contentBounds = ElementBounds.Fixed(0, 0, width, height);
 
         SingleComposer?.Dispose();
         GuiComposer composer = capi.Gui.CreateCompo("astroschestmod-mergedchests", dialogBounds)
@@ -175,35 +286,41 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
                 ElementStdBounds.VerticalScrollbar(insetBounds).WithParent(dialogBounds), "scrollbar");
         }
 
-        composer.BeginClip(clipBounds).BeginChildElements(contentBounds);
-        for (int i = 0; i < chests.Count; i++)
+        return composer.BeginClip(clipBounds).BeginChildElements(contentBounds);
+    }
+
+    /// <summary>
+    /// tells the scrollbar how much of the content fits, when the window has one
+    /// </summary>
+    /// <param name="height">how tall the content is</param>
+    /// <param name="maxHeight">how tall the content can get before it has to scroll</param>
+    private void SetUpScrollbar(double height, double maxHeight)
+    {
+        if (height > maxHeight)
         {
-            AddSectionHeader(composer, i, grid.Positions[i].X, grid.Positions[i].Y);
+            SingleComposer.GetScrollbar("scrollbar").SetHeights((float)maxHeight, (float)height);
+        }
+    }
+
+    /// <summary>
+    /// picks how many columns the one big chest gets, the count that gets closest to the shape of the screen while still
+    /// fitting in the space the window has
+    /// </summary>
+    /// <param name="slotCount">how many slots the chests have together</param>
+    /// <param name="maxWidth">how wide the content can get</param>
+    /// <param name="maxHeight">how tall the content can get before it has to scroll</param>
+    /// <returns>the column count</returns>
+    private int PickOneChestColumns(int slotCount, double maxWidth, double maxHeight)
+    {
+        List<SectionGrid> grids = [];
+        for (int columns = 1; columns <= slotCount; columns++)
+        {
+            ElementBounds slotBounds = GetSlotGridBounds(slotCount, columns, 0, 0);
+            grids.Add(new SectionGrid([(0, 0)], slotBounds.fixedWidth, CategoriesHeight + slotBounds.fixedHeight));
         }
 
-        composer.EndChildElements();
-        slotGrids.Clear();
-        for (int i = 0; i < chests.Count; i++)
-        {
-            AddSectionSlots(composer, i, grid.Positions[i].X, grid.Positions[i].Y + HeaderHeight);
-        }
-
-        composer.EndClip();
-        SingleComposer = composer.Compose();
-
-        shownCategories = new string[chests.Count];
-        for (int i = 0; i < chests.Count; i++)
-        {
-            SingleComposer.GetSwitch("merged" + i).SetValue(true);
-            ShowCategories(i, GetCategories(chests[i]));
-        }
-
-        if (scrolls)
-        {
-            SingleComposer.GetScrollbar("scrollbar").SetHeights((float)visibleHeight, (float)grid.Height);
-        }
-
-        PlaceAboveInventory();
+        SectionGrid? best = SectionGridPlanner.PickBest(grids, maxWidth, maxHeight, GetScreenAspectRatio());
+        return best == null ? 1 : grids.IndexOf(best) + 1;
     }
 
     /// <summary>
@@ -217,7 +334,7 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
     private void AddSectionHeader(GuiComposer composer, int index, double x, double y)
     {
         MergedChest chest = chests[index];
-        double width = GetSlotGridBounds(chest, 0, 0).fixedWidth;
+        double width = GetSlotGridBounds(chest.Inventory.Count, chest.Columns, 0, 0).fixedWidth;
         ElementBounds checkboxBounds = ElementBounds.Fixed(x, y + 1, CheckboxSize, CheckboxSize);
         ElementBounds titleBounds = ElementBounds.Fixed(x + CheckboxSize + 6, y, width - CheckboxSize - 6, TitleHeight);
         ElementBounds categoriesBounds = ElementBounds.Fixed(x, y + TitleHeight, width, CategoriesHeight);
@@ -242,23 +359,24 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
     private void AddSectionSlots(GuiComposer composer, int index, double x, double y)
     {
         MergedChest chest = chests[index];
-        ElementBounds slotBounds = GetSlotGridBounds(chest, x, y);
+        ElementBounds slotBounds = GetSlotGridBounds(chest.Inventory.Count, chest.Columns, x, y);
         slotGrids.Add((slotBounds, y));
         composer.AddItemSlotGrid(chest.Inventory, packet => SendChestPacket(chest, packet), chest.Columns, slotBounds,
             "slots" + index);
     }
 
     /// <summary>
-    /// gets the slot grid of a chest, its as wide as the chest has columns
+    /// gets the bounds of a slot grid with this many slots and columns
     /// </summary>
-    /// <param name="chest">the chest</param>
+    /// <param name="slotCount">how many slots it has</param>
+    /// <param name="columns">how many columns it has</param>
     /// <param name="x">where the grid goes from the left</param>
     /// <param name="y">where the grid goes from the top</param>
     /// <returns>the bounds of the grid</returns>
-    private static ElementBounds GetSlotGridBounds(MergedChest chest, double x, double y)
+    private static ElementBounds GetSlotGridBounds(int slotCount, int columns, double x, double y)
     {
-        int rows = (int)Math.Ceiling(chest.Inventory.Count / (double)chest.Columns);
-        return ElementStdBounds.SlotGrid(EnumDialogArea.None, x, y, chest.Columns, rows);
+        int rows = (int)Math.Ceiling(slotCount / (double)columns);
+        return ElementStdBounds.SlotGrid(EnumDialogArea.None, x, y, columns, rows);
     }
 
     /// <summary>
@@ -268,16 +386,16 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
     /// <returns>the size of its slots with the header on top</returns>
     private static SectionSize GetSectionSize(MergedChest chest)
     {
-        ElementBounds slotBounds = GetSlotGridBounds(chest, 0, 0);
+        ElementBounds slotBounds = GetSlotGridBounds(chest.Inventory.Count, chest.Columns, 0, 0);
         return new SectionSize(slotBounds.fixedWidth, HeaderHeight + slotBounds.fixedHeight);
     }
 
     /// <summary>
-    /// works out how big the sections can get together. the window has to stay off the edges of the screen and fit above
-    /// the players inventory, with room left at the top and bottom of the screen for the sort button and the hotbar
+    /// works out how big the content of the window can get. the window has to stay off the edges of the screen and fit
+    /// above the players inventory, with room left at the top and bottom of the screen for the sort button and the hotbar
     /// </summary>
-    /// <returns>the most width and height the sections can take up</returns>
-    private (double Width, double Height) GetSpaceForSections()
+    /// <returns>the most width and height the content can take up</returns>
+    private (double Width, double Height) GetSpaceForContent()
     {
         double padding = GuiStyle.ElementToDialogPadding;
         double windowWidth = 2 * InsetPadding + 2 * padding + ScrollbarSpace;
@@ -290,7 +408,7 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
         (double frameWidth, double frameHeight) = GetFrameSize();
         double width = frameWidth - 2 * GuiStyle.DialogToScreenPadding - windowWidth;
         double height = frameHeight - 2 * ScreenEdgeSpace - inventoryHeight - windowHeight;
-        return (Math.Max(width, MinSectionSpace), Math.Max(height, MinSectionSpace));
+        return (Math.Max(width, MinContentSpace), Math.Max(height, MinContentSpace));
     }
 
     /// <summary>
@@ -409,6 +527,16 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
     }
 
     /// <summary>
+    /// gets the width to height ratio of the screen, the window aims for the same shape
+    /// </summary>
+    /// <returns>the ratio</returns>
+    private double GetScreenAspectRatio()
+    {
+        (double frameWidth, double frameHeight) = GetFrameSize();
+        return frameWidth / frameHeight;
+    }
+
+    /// <summary>
     /// gets what the layout depends on, so it can be built again when the screen changes
     /// </summary>
     /// <returns>the screen size in pixels and the gui scale</returns>
@@ -418,13 +546,25 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
     }
 
     /// <summary>
-    /// lists the categories of everything in a chest, in the order they get sorted in
+    /// shows the categories on every categories line, for a window that just got built
     /// </summary>
-    /// <param name="chest">the chest</param>
-    /// <returns>the category names, or that its empty</returns>
-    private string GetCategories(MergedChest chest)
+    private void ShowAllCategories()
     {
-        List<string> names = chest.Inventory
+        shownCategories = new string[categoryInventories.Count];
+        for (int i = 0; i < categoryInventories.Count; i++)
+        {
+            ShowCategories(i, GetCategories(categoryInventories[i]));
+        }
+    }
+
+    /// <summary>
+    /// lists the categories of everything in an inventory, in the order they get sorted in
+    /// </summary>
+    /// <param name="inventory">a chest or the one big chest</param>
+    /// <returns>the category names, or that its empty</returns>
+    private string GetCategories(InventoryBase inventory)
+    {
+        List<string> names = inventory
             .Select(slot => slot.Itemstack)
             .OfType<ItemStack>()
             .Select(stack => ItemClassifier.GetCategory(stack, capi.World))
@@ -437,16 +577,16 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
     }
 
     /// <summary>
-    /// writes the categories under the title of a chest, cut off when they dont fit. hovering over them shows all of them
+    /// writes the categories on a categories line, cut off when they dont fit. hovering over them shows all of them
     /// </summary>
-    /// <param name="index">which chest it is</param>
+    /// <param name="index">which categories line it is</param>
     /// <param name="categories">the categories to show</param>
     private void ShowCategories(int index, string categories)
     {
         shownCategories[index] = categories;
-        string fitted = FitText(categories, CairoFont.WhiteDetailText(),
-            GetSlotGridBounds(chests[index], 0, 0).fixedWidth);
-        SingleComposer.GetDynamicText("categories" + index).SetNewText(fitted);
+        GuiElementDynamicText text = SingleComposer.GetDynamicText("categories" + index);
+        string fitted = FitText(categories, CairoFont.WhiteDetailText(), text.Bounds.fixedWidth);
+        text.SetNewText(fitted);
 
         GuiElementHoverText hoverText = SingleComposer.GetHoverText("categorieshover" + index);
         hoverText.SetNewText(categories);
@@ -496,7 +636,19 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
     {
         if (!merge)
         {
-            onChestUnmerged(chest);
+            onChestsUnmerged([chest]);
+        }
+    }
+
+    /// <summary>
+    /// unmerges every chest when the checkbox of the one big chest gets unticked
+    /// </summary>
+    /// <param name="merge">false if the checkbox got unticked</param>
+    private void OnOneChestMergeToggled(bool merge)
+    {
+        if (!merge)
+        {
+            onChestsUnmerged([.. chests]);
         }
     }
 
@@ -511,9 +663,9 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
     }
 
     /// <summary>
-    /// moves the chest sections when the scrollbar moves, the slot grids get moved on their own
+    /// moves the content when the scrollbar moves, the slot grids get moved on their own
     /// </summary>
-    /// <param name="value">how far down the sections are scrolled</param>
+    /// <param name="value">how far down the content is scrolled</param>
     private void OnNewScrollbarValue(float value)
     {
         if (contentBounds == null)

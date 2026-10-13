@@ -39,7 +39,7 @@ public static class SectionGridPlanner
     /// <param name="maxHeight">how tall the grid can get before the window has to scroll</param>
     /// <param name="aspectRatio">the width to height ratio to aim for</param>
     /// <returns>the grid, when nothing fits its the shortest one that still fits the width. null if there are none</returns>
-    private static SectionGrid? PickBest(List<SectionGrid> grids, double maxWidth, double maxHeight, double aspectRatio)
+    public static SectionGrid? PickBest(List<SectionGrid> grids, double maxWidth, double maxHeight, double aspectRatio)
     {
         return grids.Where(grid => grid.Width <= maxWidth && grid.Height <= maxHeight)
                    .MinBy(grid => Math.Abs(Math.Log(grid.Width / grid.Height / aspectRatio)))

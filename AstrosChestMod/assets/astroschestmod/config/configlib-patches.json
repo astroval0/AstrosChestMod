@@ -36,6 +36,18 @@
       "comment": "setting-keepgroupsinonechest-comment",
       "default": true,
       "clientSide": true
+    },
+    {
+      "type": "separator",
+      "title": "setting-section-merging"
+    },
+    {
+      "type": "boolean",
+      "code": "MergeIntoOneChest",
+      "ingui": "setting-mergeintoonechest",
+      "comment": "setting-mergeintoonechest-comment",
+      "default": false,
+      "clientSide": true
     }
   ]
 }
