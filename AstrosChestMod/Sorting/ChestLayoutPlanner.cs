@@ -54,7 +54,7 @@ public static class ChestLayoutPlanner
             {
                 if (keepGroups)
                 {
-                    cursor.TryStartInNextChest(category.Count(), stacksLeft);
+                    cursor.TryStartInNextChest(family.Count(), stacksLeft);
                 }
 
                 foreach (var sameItem in family.GroupBy(entry => entry.Stack.Collectible))
