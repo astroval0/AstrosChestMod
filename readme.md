@@ -34,3 +34,7 @@ the rest is in `VintagestoryData/ModConfig/astroschestmod.json`. if you have [Co
 ## building
 
 needs the .NET 10 SDK and Vintage Story 1.22 installed in the default place (`%APPDATA%\Vintagestory`). building copies the mod straight into `VintagestoryData\Mods\AstrosChestMod`, so close the game first.
+
+## license
+
+LGPL 2.1, see `LICENSE`.
