@@ -28,7 +28,7 @@ public class AstrosChestModSystem : ModSystem
     public override void StartClientSide(ICoreClientAPI api)
     {
         configFile = new ConfigFile(api, Mod);
-        ChestOrder chestOrder = new();
+        ChestOrder chestOrder = new(api, Mod);
         chestSort = new ChestSortFeature(api, configFile, chestOrder);
     }
 
