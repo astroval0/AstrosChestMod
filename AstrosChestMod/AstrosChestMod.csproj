@@ -35,4 +35,18 @@
         <Copy SourceFiles="@(ModAssets)" DestinationFolder="$(ModInstallDir)\assets\%(RecursiveDir)"/>
     </Target>
 
+    <Target Name="PackageMod" AfterTargets="InstallMod" Condition="'$(Configuration)' == 'Release'">
+        <PropertyGroup>
+            <PackageDir>$(MSBuildProjectDirectory)\$(IntermediateOutputPath)package\</PackageDir>
+            <ReleaseZip>$(MSBuildProjectDirectory)\bin\$(MSBuildProjectName)-$(Version).zip</ReleaseZip>
+        </PropertyGroup>
+        <ItemGroup>
+            <PackageAssets Include="$(TargetDir)assets\**\*"/>
+        </ItemGroup>
+        <RemoveDir Directories="$(PackageDir)"/>
+        <Copy SourceFiles="$(TargetPath);$(TargetDir)$(TargetName).pdb;$(TargetDir)modinfo.json;$(TargetDir)modicon.png;$(MSBuildProjectDirectory)\..\LICENSE" DestinationFolder="$(PackageDir)"/>
+        <Copy SourceFiles="@(PackageAssets)" DestinationFolder="$(PackageDir)assets\%(RecursiveDir)"/>
+        <ZipDirectory SourceDirectory="$(PackageDir)" DestinationFile="$(ReleaseZip)" Overwrite="true"/>
+    </Target>
+
 </Project>
