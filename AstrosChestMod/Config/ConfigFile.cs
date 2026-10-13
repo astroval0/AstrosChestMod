@@ -1,18 +1,20 @@
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
+using Vintagestory.API.Datastructures;
 
 namespace AstrosChestMod.Config;
 
-public class ConfigFile
+public class ConfigFile : IDisposable
 {
     private readonly ICoreClientAPI capi;
     private readonly ILogger logger;
     private readonly string fileName;
+    private readonly EventBusListenerDelegate configLibSavedListener;
 
     public AstrosChestConfig Current { get; private set; }
     
     /// <summary>
-    /// loads the config file and writes the defaults on first run
+    /// loads the config file and writes the defaults on first run and starts listening for ConfigLib saves
     /// </summary>
     /// <param name="capi">the client api</param>
     /// <param name="mod">the mod the config belongs to, its id is used for the file name</param>
@@ -21,6 +23,25 @@ public class ConfigFile
         this.capi = capi;
         logger = mod.Logger;
         fileName = mod.Info.ModID + ".json";
+        Current = Load();
+
+        configLibSavedListener = OnConfigLibSaved;
+        capi.Event.RegisterEventBusListener(configLibSavedListener, 0.5, $"configlib:{mod.Info.ModID}:config-saved");
+    }
+
+    /// <summary>
+    /// stops listening for configlib saves
+    /// </summary>
+    public void Dispose()
+    {
+        capi.Event.UnregisterEventBusListener(configLibSavedListener);
+    }
+
+    /// <summary>
+    /// reloads the config once configlib has written the new values to the file
+    /// </summary>
+    private void OnConfigLibSaved(string eventName, ref EnumHandling handling, IAttribute data)
+    {
         Current = Load();
     }
 

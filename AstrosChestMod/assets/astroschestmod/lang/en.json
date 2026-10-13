@@ -1,0 +1,11 @@
+{
+  "setting-section-sorting": "Sorting",
+  "setting-showsortbutton": "Show sort button",
+  "setting-showsortbutton-comment": "shows a sort button at the top of the screen while a chest is open",
+  "setting-showsortsummary": "Show sort summary",
+  "setting-showsortsummary-comment": "(client side) says in chat how many stacks got merged and moved after every sort",
+  "setting-startcategoriesonnewrow": "start categories on a new row",
+  "setting-startcategoriesonnewrow-comment": "leaves a gap so every category starts on its own row",
+  "setting-keepgroupsinonechest": "keep groups in one chest",
+  "setting-keepgroupsinonechest-comment": "moves a group of the same items to the next chest instead of splitting it between two, when there is room"
+}

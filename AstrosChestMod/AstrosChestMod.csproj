@@ -23,10 +23,15 @@
 
     <ItemGroup>
         <None Update="modinfo.json" CopyToOutputDirectory="PreserveNewest"/>
+        <None Update="assets\**\*" CopyToOutputDirectory="PreserveNewest"/>
     </ItemGroup>
 
     <Target Name="InstallMod" AfterTargets="Build">
+        <ItemGroup>
+            <ModAssets Include="$(TargetDir)assets\**\*"/>
+        </ItemGroup>
         <Copy SourceFiles="$(TargetPath);$(TargetDir)$(TargetName).pdb;$(TargetDir)modinfo.json" DestinationFolder="$(ModInstallDir)"/>
+        <Copy SourceFiles="@(ModAssets)" DestinationFolder="$(ModInstallDir)\assets\%(RecursiveDir)"/>
     </Target>
 
 </Project>

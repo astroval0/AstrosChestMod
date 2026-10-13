@@ -1,0 +1,41 @@
+{
+  "file": "astroschestmod.json",
+  "settings": [
+    {
+      "type": "separator",
+      "title": "setting-section-sorting"
+    },
+    {
+      "type": "boolean",
+      "code": "ShowSortButton",
+      "ingui": "setting-showsortbutton",
+      "comment": "setting-showsortbutton-comment",
+      "default": true,
+      "clientSide": true
+    },
+    {
+      "type": "boolean",
+      "code": "ShowSortSummary",
+      "ingui": "setting-showsortsummary",
+      "comment": "setting-showsortsummary-comment",
+      "default": true,
+      "clientSide": true
+    },
+    {
+      "type": "boolean",
+      "code": "StartCategoriesOnNewRow",
+      "ingui": "setting-startcategoriesonnewrow",
+      "comment": "setting-startcategoriesonnewrow-comment",
+      "default": true,
+      "clientSide": true
+    },
+    {
+      "type": "boolean",
+      "code": "KeepGroupsInOneChest",
+      "ingui": "setting-keepgroupsinonechest",
+      "comment": "setting-keepgroupsinonechest-comment",
+      "default": true,
+      "clientSide": true
+    }
+  ]
+}

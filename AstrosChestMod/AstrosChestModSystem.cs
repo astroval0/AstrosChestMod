@@ -36,5 +36,6 @@ public class AstrosChestModSystem : ModSystem
     public override void Dispose()
     {
         chestSort?.Dispose();
+        configFile?.Dispose();
     }
 }
