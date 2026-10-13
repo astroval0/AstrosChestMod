@@ -22,6 +22,8 @@ works on chests, trunks, reed chests, labeled chests and storage vessels. crates
 - untick a chest in the merged window to give it its own window back, it opens on its own after that
 - the merged window fits itself to your screen and sits right above your inventory without covering your other chests
 - turn on MergeIntoOneChest to show all the merged slots in one grid like it's one big chest, sorting treats it like one chest too
+- type in the search box at the top of the merged window and everything that doesn't match gets dimmed, so you can see right away which chest your stuff is in
+- the search looks at item names and categories, so typing food lights up all your food
 
 ## client side only
 
