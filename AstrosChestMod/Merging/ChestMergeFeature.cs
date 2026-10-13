@@ -5,6 +5,7 @@ using HarmonyLib;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 using Vintagestory.API.Config;
+using Vintagestory.API.MathTools;
 using Vintagestory.GameContent;
 
 namespace AstrosChestMod.Merging;
@@ -15,6 +16,7 @@ public class ChestMergeFeature : IDisposable
     private const double CheckboxSize = 18;
     private const int RefreshMs = 100;
     private const int CloseChestPacket = 1001;
+    private const long OpenRequestTimeoutMs = 2000;
 
     private static readonly AccessTools.FieldRef<BlockEntityOpenableContainer, GuiDialogBlockEntity?> ChestWindowField =
         AccessTools.FieldRefAccess<BlockEntityOpenableContainer, GuiDialogBlockEntity?>("invDialog");
@@ -24,9 +26,11 @@ public class ChestMergeFeature : IDisposable
 
     private readonly ICoreClientAPI capi;
     private readonly ChestOrder chestOrder;
+    private readonly MergedChestGroups chestGroups;
     private readonly ILogger logger;
     private readonly GuiDialogMergedChests mergedWindow;
     private readonly HashSet<GuiDialogBlockEntity> windowsBeingSwapped = [];
+    private readonly Dictionary<BlockPos, long> openRequests = [];
     private readonly long refreshListenerId;
 
     public static ChestMergeFeature? Active { get; private set; }
@@ -35,14 +39,15 @@ public class ChestMergeFeature : IDisposable
     /// sets up merging chests into one window, the harmony patches get to it through Active
     /// </summary>
     /// <param name="capi">the client api</param>
+    /// <param name="mod">the mod, for the logger and the folder the merged chest groups get saved in</param>
     /// <param name="configFile">the mod config, the merged window reads if it should be one big chest from it</param>
     /// <param name="chestOrder">decides the order of the chests in the merged window</param>
-    /// <param name="logger">the mod logger</param>
-    public ChestMergeFeature(ICoreClientAPI capi, ConfigFile configFile, ChestOrder chestOrder, ILogger logger)
+    public ChestMergeFeature(ICoreClientAPI capi, Mod mod, ConfigFile configFile, ChestOrder chestOrder)
     {
         this.capi = capi;
         this.chestOrder = chestOrder;
-        this.logger = logger;
+        logger = mod.Logger;
+        chestGroups = new MergedChestGroups(capi, mod);
 
         mergedWindow = new GuiDialogMergedChests(capi, configFile, OnChestsUnmerged, OnMergedWindowClosed);
         refreshListenerId = capi.Event.RegisterGameTickListener(OnRefresh, RefreshMs);
@@ -140,6 +145,29 @@ public class ChestMergeFeature : IDisposable
     }
 
     /// <summary>
+    /// moves a chest that just got opened into the merged window when its in a group. when the player opened it the rest
+    /// of the group gets opened too, chests the mod opened for the group dont open it again. the game already opened the
+    /// chests own window, that one gets swapped out before it ever gets drawn
+    /// </summary>
+    /// <param name="blockEntity">the chest that just got opened</param>
+    public void OnChestOpened(BlockEntityOpenableContainer blockEntity)
+    {
+        bool requested = IsOpenRequested(blockEntity.Pos, capi.World.ElapsedMilliseconds);
+        openRequests.Remove(blockEntity.Pos);
+
+        IReadOnlyList<BlockPos>? group = chestGroups.FindGroup(blockEntity.Pos);
+        if (group == null || ChestWindowField(blockEntity) is not GuiDialogBlockEntityInventory window)
+        {
+            return;
+        }
+
+        if (MergeChestWindow(window) && !requested)
+        {
+            OpenRestOfGroup(group);
+        }
+    }
+
+    /// <summary>
     /// merges a chest when its checkbox gets ticked. that only happens next frame because the click is still running
     /// inside the window that gets closed
     /// </summary>
@@ -149,7 +177,20 @@ public class ChestMergeFeature : IDisposable
     {
         if (merge)
         {
-            capi.Event.EnqueueMainThreadTask(() => MergeChestWindow(window), "astroschestmod-merge");
+            capi.Event.EnqueueMainThreadTask(() => MergeIntoGroup(window), "astroschestmod-merge");
+        }
+    }
+
+    /// <summary>
+    /// merges a chest window and puts its chest in one group with the chests in the merged window, so they all open
+    /// together from now on
+    /// </summary>
+    /// <param name="window">the chest window</param>
+    private void MergeIntoGroup(GuiDialogBlockEntityInventory window)
+    {
+        if (MergeChestWindow(window))
+        {
+            chestGroups.Merge(window.BlockEntityPosition, mergedWindow.Chests.Select(chest => chest.Pos).ToList());
         }
     }
 
@@ -167,18 +208,89 @@ public class ChestMergeFeature : IDisposable
     /// moves a chest from its own window into the merged window, the chest stays open the whole time
     /// </summary>
     /// <param name="window">the chest window</param>
-    private void MergeChestWindow(GuiDialogBlockEntityInventory window)
+    /// <returns>true if the chest got merged</returns>
+    private bool MergeChestWindow(GuiDialogBlockEntityInventory window)
     {
         BlockEntity? blockEntity = capi.World.BlockAccessor.GetBlockEntity(window.BlockEntityPosition);
         if (!window.IsOpened() || window.Inventory == null || blockEntity is not BlockEntityGenericTypedContainer chest)
         {
-            return;
+            return false;
         }
 
         MergedChest merged = new(window.Inventory, window.BlockEntityPosition.Copy(), window.DialogTitle,
             chest.quantityColumns, window.CloseSound);
         CloseWithoutClosingChest(window, chest);
         ShowChests([.. mergedWindow.Chests, merged]);
+        return true;
+    }
+
+    /// <summary>
+    /// opens the other chests of a group that are in reach by right clicking them for the player. the server opens them
+    /// like any chest the player right clicks and sends what is in them, the copy of a closed chest the client has can
+    /// be old. nothing happens while sneaking, some chests do something else on a sneaking right click
+    /// </summary>
+    /// <param name="group">the positions of the chests in the group</param>
+    private void OpenRestOfGroup(IReadOnlyList<BlockPos> group)
+    {
+        if (capi.World.Player.Entity.Controls.ShiftKey)
+        {
+            return;
+        }
+
+        long nowMs = capi.World.ElapsedMilliseconds;
+        foreach (BlockPos pos in group)
+        {
+            if (IsOpenRequested(pos, nowMs) || !IsClosedChestInReach(pos))
+            {
+                continue;
+            }
+
+            openRequests[pos.Copy()] = nowMs;
+            RightClickChest(pos);
+        }
+    }
+
+    /// <summary>
+    /// checks if the mod right clicked a chest for the group and is still waiting for it to open
+    /// </summary>
+    /// <param name="pos">where the chest is</param>
+    /// <param name="nowMs">the time now in milliseconds</param>
+    /// <returns>true if its still waiting, requests the server never answered run out after a bit</returns>
+    private bool IsOpenRequested(BlockPos pos, long nowMs)
+    {
+        return openRequests.TryGetValue(pos, out long requestedMs) && nowMs - requestedMs < OpenRequestTimeoutMs;
+    }
+
+    /// <summary>
+    /// checks if there is still a closed chest at a spot and the player can reach it. something else could have been
+    /// placed there since, right clicking that would use it
+    /// </summary>
+    /// <param name="pos">where the chest should be</param>
+    /// <returns>true if the chest can be opened</returns>
+    private bool IsClosedChestInReach(BlockPos pos)
+    {
+        return capi.World.BlockAccessor.GetBlockEntity(pos) is BlockEntityGenericTypedContainer chest &&
+               !capi.World.Player.InventoryManager.OpenedInventories.Contains(chest.Inventory) &&
+               mergedWindow.IsInRangeOfBlock(pos);
+    }
+
+    /// <summary>
+    /// right clicks a chest for the player with the same packets the game sends when the player right clicks a block
+    /// </summary>
+    /// <param name="pos">where the chest is</param>
+    private void RightClickChest(BlockPos pos)
+    {
+        BlockSelection selection = new()
+        {
+            Position = pos.Copy(),
+            Face = BlockFacing.UP,
+            HitPosition = new Vec3d(0.5, 1, 0.5)
+        };
+
+        capi.Network.SendHandInteraction((int)EnumMouseButton.Right, selection, null, EnumHandInteract.BlockInteract,
+            (int)EnumHandInteractNw.StartBlockUse, false, EnumItemUseCancelReason.ReleasedMouse);
+        capi.Network.SendHandInteraction((int)EnumMouseButton.Right, selection, null, EnumHandInteract.BlockInteract,
+            (int)EnumHandInteractNw.StopBlockUse, false, EnumItemUseCancelReason.ReleasedMouse);
     }
 
     /// <summary>
@@ -231,7 +343,8 @@ public class ChestMergeFeature : IDisposable
     }
 
     /// <summary>
-    /// takes chests out of the merged window and gives them their own windows again, without closing them
+    /// takes chests out of the merged window and gives them their own windows again, without closing them. they leave
+    /// their group too so they open on their own from now on
     /// </summary>
     /// <param name="chests">the chests</param>
     private void PopOutChests(List<MergedChest> chests)
@@ -245,6 +358,7 @@ public class ChestMergeFeature : IDisposable
         RemoveFromMergedWindow(merged);
         foreach (MergedChest chest in merged)
         {
+            chestGroups.Remove(chest.Pos);
             OpenChestWindow(chest);
         }
     }

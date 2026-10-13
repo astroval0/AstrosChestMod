@@ -19,4 +19,18 @@ public static class ChestOpenPatch
     {
         return packetid != OpenChestPacket || ChestMergeFeature.Active?.TryCloseMergedChest(__instance) != true;
     }
+
+    /// <summary>
+    /// moves a chest that is in a merged group straight into the merged window once the game opened it, and opens the
+    /// rest of its group
+    /// </summary>
+    /// <param name="__instance">the chest that got the packet</param>
+    /// <param name="packetid">the packet id, 5000 is the server telling the client to open the chest</param>
+    public static void Postfix(BlockEntityOpenableContainer __instance, int packetid)
+    {
+        if (packetid == OpenChestPacket)
+        {
+            ChestMergeFeature.Active?.OnChestOpened(__instance);
+        }
+    }
 }
