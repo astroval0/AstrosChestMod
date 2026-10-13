@@ -1,5 +1,6 @@
 using AstrosChestMod.Config;
 using AstrosChestMod.Inventory;
+using AstrosChestMod.Merging;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 using Vintagestory.GameContent;
@@ -47,7 +48,13 @@ public class ChestSorter
     /// </summary>
     private ChestShape GetChestShape(InventoryBase chest)
     {
-        BlockEntityGenericTypedContainer? container = capi.World.BlockAccessor.GetBlockEntity(chest.Pos) as BlockEntityGenericTypedContainer;
+        if (chest is MergedChestInventory oneChest)
+        {
+            return new ChestShape(oneChest.Count, oneChest.Columns);
+        }
+
+        BlockEntityGenericTypedContainer? container =
+            capi.World.BlockAccessor.GetBlockEntity(chest.Pos) as BlockEntityGenericTypedContainer;
         return new ChestShape(chest.Count, container?.quantityColumns ?? 0);
     }
 
@@ -92,7 +99,7 @@ public class ChestSorter
 
         return merged;
     }
-    
+
     /// <summary>
     /// swaps stacks around until every slot holds the stack the layout wants there
     /// </summary>

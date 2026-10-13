@@ -10,6 +10,8 @@ public class MergedChestInventory : InventoryBase, IDisposable
     private readonly List<(InventoryBase Inventory, Action<int> Listener)> slotListeners = [];
     private readonly Action<MergedChest, object> sendChestPacket;
 
+    public int Columns { get; }
+
     public override int Count => slots.Count;
 
     public override ItemSlot this[int slotId]
@@ -24,11 +26,13 @@ public class MergedChestInventory : InventoryBase, IDisposable
     /// </summary>
     /// <param name="capi">the client api</param>
     /// <param name="chests">the chests in the order their slots go in</param>
+    /// <param name="columns">how many columns the slot grid showing it has, sorting starts categories on its rows</param>
     /// <param name="sendChestPacket">sends a slot packet to the chest the slot belongs to</param>
-    public MergedChestInventory(ICoreClientAPI capi, List<MergedChest> chests,
+    public MergedChestInventory(ICoreClientAPI capi, List<MergedChest> chests, int columns,
         Action<MergedChest, object> sendChestPacket)
         : base("astroschestmod-mergedchests", capi)
     {
+        Columns = columns;
         this.sendChestPacket = sendChestPacket;
 
         foreach (MergedChest chest in chests)

@@ -1,5 +1,6 @@
 using AstrosChestMod.Config;
 using AstrosChestMod.Inventory;
+using AstrosChestMod.Merging;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 
@@ -17,29 +18,33 @@ public class ChestSortFeature : IDisposable
     private readonly OpenChestFinder chestFinder;
     private readonly ChestSorter chestSorter;
     private readonly ChestOrder chestOrder;
+    private readonly ChestMergeFeature chestMerge;
 
     private readonly GuiDialogSortButton sortButton;
     private readonly long buttonRefreshListenerId;
 
     private long lastSortMs = -SortCooldownMs;
-    
+
     /// <summary>
     ///  Registers the sort hotkey and starts checking for open chests so the sort button can show up
     /// </summary>
     /// <param name="capi"> the client api </param>
     /// <param name="configFile">the mod config</param>
     /// <param name="chestOrder">decides which chest gets filled first</param>
-    public ChestSortFeature(ICoreClientAPI capi, ConfigFile configFile, ChestOrder chestOrder)
+    /// <param name="chestMerge">knows which chests are merged into one big chest, those get sorted like one chest</param>
+    public ChestSortFeature(ICoreClientAPI capi, ConfigFile configFile, ChestOrder chestOrder,
+        ChestMergeFeature chestMerge)
     {
         this.capi = capi;
         this.configFile = configFile;
         this.chestOrder = chestOrder;
-        
+        this.chestMerge = chestMerge;
+
         chestFinder = new OpenChestFinder(capi);
         chestSorter = new ChestSorter(capi, new SlotMover(capi));
 
         sortButton = new GuiDialogSortButton(capi, OnSortButtonClicked);
-        
+
         capi.Input.RegisterHotKey(HotkeyCode, "Sort Chests", GlKeys.R, HotkeyType.InventoryHotkeys);
         capi.Input.SetHotKeyHandler(HotkeyCode, OnSortHotkey);
 
@@ -62,7 +67,7 @@ public class ChestSortFeature : IDisposable
     {
         TrySortOpenChests();
     }
-    
+
     /// <summary>
     /// sorts all open chests, unless none are open or the last sort was less than a second ago
     /// </summary>
@@ -80,11 +85,11 @@ public class ChestSortFeature : IDisposable
         {
             return true;
         }
-        
+
         lastSortMs = nowMs;
 
         AstrosChestConfig config = configFile.Current;
-        SortResult result = chestSorter.Sort(chestOrder.Arrange(chests), config);
+        SortResult result = chestSorter.Sort(chestMerge.CombineOneChest(chestOrder.Arrange(chests)), config);
 
         if (config.ShowSortSummary)
         {

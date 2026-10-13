@@ -40,6 +40,8 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
 
     public IReadOnlyList<MergedChest> Chests => chests;
 
+    public MergedChestInventory? OneChest => oneChest;
+
     /// <summary>
     /// creates the merged chest window, it stays hidden until it gets opened. its a block entity window so other mods
     /// treat it like a chest window, it gets moved onto one of its chests every time chests get shown
@@ -221,10 +223,11 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
     /// </summary>
     private void ComposeOneChest()
     {
-        oneChest = new MergedChestInventory(capi, chests, SendChestPacket);
         (double maxWidth, double maxHeight) = GetSpaceForContent();
-        int columns = PickOneChestColumns(oneChest.Count, maxWidth, maxHeight);
-        ElementBounds slotBounds = GetSlotGridBounds(oneChest.Count, columns, 0, CategoriesHeight);
+        int slotCount = chests.Sum(chest => chest.Inventory.Count);
+        int columns = PickOneChestColumns(slotCount, maxWidth, maxHeight);
+        oneChest = new MergedChestInventory(capi, chests, columns, SendChestPacket);
+        ElementBounds slotBounds = GetSlotGridBounds(slotCount, columns, 0, CategoriesHeight);
         double width = slotBounds.fixedWidth;
         double height = CategoriesHeight + slotBounds.fixedHeight;
         ElementBounds categoriesBounds = ElementBounds.Fixed(0, 0, width, CategoriesHeight);

@@ -89,6 +89,27 @@ public class ChestMergeFeature : IDisposable
     }
 
     /// <summary>
+    /// swaps the chests that are merged into one big chest for that one big chest so they get sorted like one chest, it
+    /// goes where the first of them was
+    /// </summary>
+    /// <param name="chests">the open chests in their order</param>
+    /// <returns>the chests with the one big chest in place of the chests in it, the same list when there is none</returns>
+    public List<InventoryBase> CombineOneChest(List<InventoryBase> chests)
+    {
+        MergedChestInventory? oneChest = mergedWindow.OneChest;
+        List<InventoryBase> merged = mergedWindow.Chests.Select(chest => chest.Inventory).ToList();
+        int first = chests.FindIndex(merged.Contains);
+        if (oneChest == null || first < 0 || !merged.All(chests.Contains))
+        {
+            return chests;
+        }
+
+        List<InventoryBase> combined = chests.Except(merged).ToList();
+        combined.Insert(first, oneChest);
+        return combined;
+    }
+
+    /// <summary>
     /// tells the close patch if a chest window is only being swapped for the merged window, its chest has to stay open then
     /// </summary>
     /// <param name="window">the window that is closing</param>
