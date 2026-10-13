@@ -12,7 +12,7 @@ public class ConfigFile : IDisposable
     private readonly EventBusListenerDelegate configLibSavedListener;
 
     public AstrosChestConfig Current { get; private set; }
-    
+
     /// <summary>
     /// loads the config file and writes the defaults on first run and starts listening for ConfigLib saves
     /// </summary>
@@ -35,6 +35,21 @@ public class ConfigFile : IDisposable
     public void Dispose()
     {
         capi.Event.UnregisterEventBusListener(configLibSavedListener);
+    }
+
+    /// <summary>
+    /// writes the config back to the file, for settings that get changed in game
+    /// </summary>
+    public void Save()
+    {
+        try
+        {
+            capi.StoreModConfig(Current, fileName);
+        }
+        catch (Exception e)
+        {
+            logger.Warning("Could not save {0}: {1}", fileName, e.Message);
+        }
     }
 
     /// <summary>

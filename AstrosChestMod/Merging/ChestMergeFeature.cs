@@ -1,4 +1,5 @@
-﻿using Vintagestory.API.Client;
+﻿using AstrosChestMod.Config;
+using Vintagestory.API.Client;
 using Vintagestory.API.Config;
 using Vintagestory.GameContent;
 
@@ -10,7 +11,7 @@ public class ChestMergeFeature : IDisposable
     private const double CheckboxSize = 18;
 
     private readonly ICoreClientAPI capi;
-    private bool mergeWindows;
+    private readonly ConfigFile configFile;
 
     public static ChestMergeFeature? Active { get; private set; }
 
@@ -18,9 +19,11 @@ public class ChestMergeFeature : IDisposable
     /// sets up merging chest windows, the harmony patches get to it through Active
     /// </summary>
     /// <param name="capi">the client api</param>
-    public ChestMergeFeature(ICoreClientAPI capi)
+    /// <param name="configFile">the mod config, it remembers if merging is on</param>
+    public ChestMergeFeature(ICoreClientAPI capi, ConfigFile configFile)
     {
         this.capi = capi;
+        this.configFile = configFile;
         Active = this;
     }
 
@@ -53,7 +56,7 @@ public class ChestMergeFeature : IDisposable
             (GuiStyle.TitleBarHeight - CheckboxSize) / 2, CheckboxSize, CheckboxSize);
 
         GuiElementSwitch checkbox = new(capi, OnMergeToggled, bounds, CheckboxSize, 2);
-        checkbox.SetValue(mergeWindows);
+        checkbox.SetValue(configFile.Current.MergeChestWindows);
 
         GuiComposer composer = window.SingleComposer;
         composer.AddInteractiveElement(checkbox, CheckboxKey);
@@ -68,7 +71,8 @@ public class ChestMergeFeature : IDisposable
     /// <param name="merge">true if the checkbox got checked</param>
     private void OnMergeToggled(bool merge)
     {
-        mergeWindows = merge;
+        configFile.Current.MergeChestWindows = merge;
+        configFile.Save();
         capi.ShowChatMessage(merge ? "merging chest windows" : "not merging chest windows");
     }
 }
