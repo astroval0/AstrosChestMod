@@ -7,23 +7,17 @@ This is a human written Vintage Story mod that aims to improve the experience fo
 ## what it does
 
 - press R or click the Sort Chests button at the top of the screen while you have chests open
-- merges partial stacks of the same item
-- sorts every open chest like it's one big chest, in this order: valuables, tools, weapons and armor, clothing and bags, food, farming and plants, ores and metals, fuel, crafting materials, building, containers and cookware, lighting
-- every category starts on its own row
-- a group of the same items goes to the next chest instead of getting split between two, if there's room
-- chests remember the order they were first sorted in, so your stuff ends up in the same chests every time
+
+https://github.com/user-attachments/assets/25a8c8d9-a869-4c8c-9a1e-f2e2e8ce4440
+
 
 works on chests, trunks, reed chests, labeled chests and storage vessels. crates and barrels are left alone.
 
-## merging chests
+## searching
 
-- every chest window gets a checkbox next to its title, tick it to move that chest into one window with the others you merged
-- chests you merge together stay together, opening one of them opens the rest that are in reach
-- untick a chest in the merged window to give it its own window back, it opens on its own after that
-- the merged window fits itself to your screen and sits right above your inventory without covering your other chests
-- turn on MergeIntoOneChest to show all the merged slots in one grid like it's one big chest, sorting treats it like one chest too
-- type in the search box at the top of the merged window and everything that doesn't match gets dimmed, so you can see right away which chest your stuff is in
-- the search looks at item names and categories, so typing food lights up all your food
+
+https://github.com/user-attachments/assets/b8caa0eb-7759-4cf4-9b6a-80b55bc87f6d
+
 
 ## client side only
 
