@@ -1,6 +1,8 @@
 using AstrosChestMod.Config;
 using AstrosChestMod.Inventory;
+using AstrosChestMod.Merging;
 using AstrosChestMod.Sorting;
+using HarmonyLib;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 
@@ -9,8 +11,10 @@ namespace AstrosChestMod;
 public class AstrosChestModSystem : ModSystem
 {
     private ChestSortFeature? chestSort;
+    private ChestMergeFeature? chestMerge;
     private ConfigFile? configFile;
-    
+    private Harmony? harmony;
+
     /// <summary>
     /// only loads on the client.
     /// </summary>
@@ -30,6 +34,10 @@ public class AstrosChestModSystem : ModSystem
         configFile = new ConfigFile(api, Mod);
         ChestOrder chestOrder = new(api, Mod);
         chestSort = new ChestSortFeature(api, configFile, chestOrder);
+        chestMerge = new ChestMergeFeature(api);
+
+        harmony = new Harmony(Mod.Info.ModID);
+        harmony.PatchAll(typeof(AstrosChestModSystem).Assembly);
     }
 
     /// <summary>
@@ -37,6 +45,8 @@ public class AstrosChestModSystem : ModSystem
     /// </summary>
     public override void Dispose()
     {
+        harmony?.UnpatchAll(Mod.Info.ModID);
+        chestMerge?.Dispose();
         chestSort?.Dispose();
         configFile?.Dispose();
     }

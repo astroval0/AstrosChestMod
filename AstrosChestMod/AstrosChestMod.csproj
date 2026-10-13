@@ -19,6 +19,16 @@
             <HintPath>$(VintageStoryDir)\Mods\VSSurvivalMod.dll</HintPath>
             <Private>false</Private>
         </Reference>
+
+        <Reference Include="0Harmony">
+            <HintPath>$(VintageStoryDir)\Lib\0Harmony.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+
+        <Reference Include="cairo-sharp">
+            <HintPath>$(VintageStoryDir)\Lib\cairo-sharp.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
     </ItemGroup>
 
     <ItemGroup>
