@@ -25,6 +25,7 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
 
     private readonly Action<MergedChest> onChestUnmerged;
     private readonly Action onWindowClosed;
+    private readonly List<(ElementBounds Bounds, double Y)> slotGrids = [];
     private List<MergedChest> chests = [];
     private string[] shownCategories = [];
     private ElementBounds? contentBounds;
@@ -177,10 +178,17 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
         composer.BeginClip(clipBounds).BeginChildElements(contentBounds);
         for (int i = 0; i < chests.Count; i++)
         {
-            AddSection(composer, i, grid.Positions[i].X, grid.Positions[i].Y);
+            AddSectionHeader(composer, i, grid.Positions[i].X, grid.Positions[i].Y);
         }
 
-        composer.EndChildElements().EndClip();
+        composer.EndChildElements();
+        slotGrids.Clear();
+        for (int i = 0; i < chests.Count; i++)
+        {
+            AddSectionSlots(composer, i, grid.Positions[i].X, grid.Positions[i].Y + HeaderHeight);
+        }
+
+        composer.EndClip();
         SingleComposer = composer.Compose();
 
         shownCategories = new string[chests.Count];
@@ -199,30 +207,45 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
     }
 
     /// <summary>
-    /// adds the section of one chest, the checkbox and title go on top, the categories under them and the slots under that
+    /// adds the top of the section of one chest, the checkbox and title go on top and the categories under them. the
+    /// title is dynamic text because static text gets drawn into the window once and wouldnt move when it scrolls
     /// </summary>
     /// <param name="composer">the composer the window is being built with</param>
     /// <param name="index">which chest it is</param>
     /// <param name="x">where the section goes from the left</param>
     /// <param name="y">where the section goes from the top</param>
-    private void AddSection(GuiComposer composer, int index, double x, double y)
+    private void AddSectionHeader(GuiComposer composer, int index, double x, double y)
     {
         MergedChest chest = chests[index];
-        ElementBounds slotBounds = GetSlotGridBounds(chest, x, y + HeaderHeight);
+        double width = GetSlotGridBounds(chest, 0, 0).fixedWidth;
         ElementBounds checkboxBounds = ElementBounds.Fixed(x, y + 1, CheckboxSize, CheckboxSize);
-        ElementBounds titleBounds = ElementBounds.Fixed(x + CheckboxSize + 6, y,
-            slotBounds.fixedWidth - CheckboxSize - 6, TitleHeight);
-        ElementBounds categoriesBounds =
-            ElementBounds.Fixed(x, y + TitleHeight, slotBounds.fixedWidth, CategoriesHeight);
+        ElementBounds titleBounds = ElementBounds.Fixed(x + CheckboxSize + 6, y, width - CheckboxSize - 6, TitleHeight);
+        ElementBounds categoriesBounds = ElementBounds.Fixed(x, y + TitleHeight, width, CategoriesHeight);
 
         composer.AddSwitch(merge => OnMergeToggled(chest, merge), checkboxBounds, "merged" + index, CheckboxSize, 2)
             .AddHoverText("unmerge this chest", CairoFont.WhiteSmallText(), 200, checkboxBounds.FlatCopy())
-            .AddStaticText(FitText(chest.Title, CairoFont.WhiteSmallText(), titleBounds.fixedWidth),
+            .AddDynamicText(FitText(chest.Title, CairoFont.WhiteSmallText(), titleBounds.fixedWidth),
                 CairoFont.WhiteSmallText(), titleBounds)
             .AddDynamicText(" ", CairoFont.WhiteDetailText(), categoriesBounds, "categories" + index)
-            .AddHoverText(" ", CairoFont.WhiteSmallText(), 300, categoriesBounds.FlatCopy(), "categorieshover" + index)
-            .AddItemSlotGrid(chest.Inventory, packet => SendChestPacket(chest, packet), chest.Columns, slotBounds,
-                "slots" + index);
+            .AddHoverText(" ", CairoFont.WhiteSmallText(), 300, categoriesBounds.FlatCopy(), "categorieshover" + index);
+    }
+
+    /// <summary>
+    /// adds the slots of one chest. they go straight into the clip and get scrolled on their own instead of going in the
+    /// scrolling content, a slot grid only checks its parent to see if the mouse is over it so it would show tooltips
+    /// for slots that are scrolled out of view
+    /// </summary>
+    /// <param name="composer">the composer the window is being built with</param>
+    /// <param name="index">which chest it is</param>
+    /// <param name="x">where the slots go from the left</param>
+    /// <param name="y">where the slots go from the top when nothing is scrolled</param>
+    private void AddSectionSlots(GuiComposer composer, int index, double x, double y)
+    {
+        MergedChest chest = chests[index];
+        ElementBounds slotBounds = GetSlotGridBounds(chest, x, y);
+        slotGrids.Add((slotBounds, y));
+        composer.AddItemSlotGrid(chest.Inventory, packet => SendChestPacket(chest, packet), chest.Columns, slotBounds,
+            "slots" + index);
     }
 
     /// <summary>
@@ -488,7 +511,7 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
     }
 
     /// <summary>
-    /// moves the chest sections when the scrollbar moves
+    /// moves the chest sections when the scrollbar moves, the slot grids get moved on their own
     /// </summary>
     /// <param name="value">how far down the sections are scrolled</param>
     private void OnNewScrollbarValue(float value)
@@ -500,6 +523,12 @@ public class GuiDialogMergedChests : GuiDialogBlockEntity
 
         contentBounds.fixedY = -value;
         contentBounds.CalcWorldBounds();
+
+        foreach ((ElementBounds bounds, double y) in slotGrids)
+        {
+            bounds.fixedY = y - value;
+            bounds.CalcWorldBounds();
+        }
     }
 
     /// <summary>
