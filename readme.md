@@ -4,6 +4,8 @@ this is a rewrite of a mod i made a little while ago.
 
 This is a human written Vintage Story mod that aims to improve the experience for players who don't want to spend their time organizing chests.
 
+made for Vintage Story 1.22.7
+
 ## what it does
 
 - press R or click the Sort Chests button at the top of the screen while you have chests open
